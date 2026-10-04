@@ -10,7 +10,7 @@ from .db import iso, log_event, now
 
 SEED_FILE = DEMO_DIR / "seed.json"
 TABLES = ("persons", "members", "invites", "facts", "cards", "reviews", "events", "explainers", "documents",
-          "schedules", "logs")
+          "schedules", "logs", "records")
 
 
 def _telegram_ids() -> dict[str, int]:

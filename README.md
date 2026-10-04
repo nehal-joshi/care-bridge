@@ -26,12 +26,16 @@ docs/
   hackathon/feature-list.md               Features and today's hackathon scope
   hackathon/execution-plan.md             Build plan: architecture, API, team split, schedule
   hackathon/runbook.md                    How to run and demo what's built
+  hackathon/demo-script.md                The 4-minute demo, step by step
+  hackathon/project-brief.md              Answers for the submission form
 assets/geeko-pfp.png                      Bot profile picture
 local.env                                 Local settings and secrets; git-ignored
 ```
 
 ## Start here
 
+- [Demo script](docs/hackathon/demo-script.md)
+- [Project brief](docs/hackathon/project-brief.md)
 - [Runbook](docs/hackathon/runbook.md)
 - [Hackathon execution plan](docs/hackathon/execution-plan.md)
 - [Care-Bridge feature list and hackathon scope](docs/hackathon/feature-list.md)

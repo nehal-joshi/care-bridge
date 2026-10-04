@@ -332,15 +332,9 @@ Stretch order if time remains: D5 ask the handbook (reuses Laya fact picking), B
 - Backdated reviews: Priya strong on everything; Dev strong on warning signs; Marcus weak on the weight rule. The coverage view should open with one red cell.
 - Use only invented data. Screens and recordings will be shared.
 
-## Demo script (3 minutes)
+## Demo script
 
-1. **Problem (20 s):** Ruth has heart failure and early memory loss. Three people care for her. What matters lives in Priya's head.
-2. **Priya adds the discharge PDF (40 s):** Gemma drafts facts with sources; Priya approves them.
-3. **Marcus's brief (40 s):** the "Send briefs" button pushes Marcus a Telegram message. He opens a 60-second brief and types "phone her nurse"; Laya marks it correct. He misses the walker-brake fact, so FSRS brings it back sooner.
-4. **Change (20 s):** Priya edits the evening-meds fact. It appears in Changes and at the top of Marcus's next brief.
-5. **Coverage (30 s):** a grid of who reliably knows each warning sign, with an alert that only Priya knows the weight rule.
-6. **Ruth (45 s):** Ruth asks the bot about puffy ankles. It answers from her approved plan and offers to show her. She taps "Show me", and a small 3D explainer walks her through the weigh-in in three taps. Then the bot asks before telling Priya, and Priya's phone buzzes.
-7. **Close (10 s):** "Care-Bridge makes sure the right person remembers the right thing when it matters."
+The current script, covering daily logs and health records, is in [demo-script.md](demo-script.md).
 
 ## Risks and fallbacks
 
