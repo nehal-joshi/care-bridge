@@ -15,7 +15,7 @@ const copy: Record<string, { k: string; h: string; p: string; points: string[] }
   capture: {
     k: "Step 1",
     h: "Write it down once, in plain words.",
-    p: "The primary caregiver uploads discharge papers or types a fact. The assistant drafts short, plain-language facts and a question for each, with the source attached.",
+    p: "Put in every instruction you need: type a note, paste a list, or upload any document you already have. The assistant turns it into short, plain-language facts, each with a question and its source attached.",
     points: ["Every fact keeps its source and version", "Drafts stay drafts until a person approves them", "Warning signs, routines and nice-to-know are ranked"],
   },
   brief: {
@@ -56,8 +56,8 @@ function CaptureUI() {
       <div className="flex items-center gap-3 rounded-2xl border border-dashed border-teal/40 bg-sky/40 p-3 text-sm">
         <Upload className="size-5 text-teal" aria-hidden />
         <div>
-          <p className="font-semibold">discharge-summary.pdf</p>
-          <p className="text-muted-foreground">2 pages, 6 drafts found</p>
+          <p className="font-semibold">Add anything you know</p>
+          <p className="text-muted-foreground">Notes, lists, documents. 6 drafts found</p>
         </div>
       </div>
       {[
@@ -68,7 +68,7 @@ function CaptureUI() {
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${c}`}>{b}</span>
           <p className="mt-2 text-sm leading-snug">{t}</p>
           <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><Sparkles className="size-3" aria-hidden /> Drafted from page 1</span>
+            <span className="flex items-center gap-1"><Sparkles className="size-3" aria-hidden /> Drafted from your note</span>
             <span className="rounded-full bg-foreground px-3 py-1 font-semibold text-background">Approve</span>
           </div>
         </div>
