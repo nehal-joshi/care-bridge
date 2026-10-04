@@ -8,7 +8,7 @@ const hanken = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-hanken" })
 export const metadata: Metadata = {
   title: "Care-Bridge · the right person remembers the right thing",
   description:
-    "One shared memory for everyone who cares for an older adult. Short briefs before every shift, a clear view of who knows what, and a gentle companion for Ruth, all inside Telegram.",
+    "One shared memory for everyone who cares for an older adult. Short briefs before every shift, a clear view of who knows what, and a calm companion for the person being cared for, all inside Telegram.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
