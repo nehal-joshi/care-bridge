@@ -102,6 +102,21 @@ How Care-Bridge uses Laya (multilingual model), based on testing with the demo f
 
 Studio runs at `http://localhost:8888`. Start it after a reboot with `unsloth studio -p 8888`.
 
+## What the bot does with chat messages
+
+Before Gemma answers any Telegram message, the API reads it (Laya when confident, otherwise Gemma) and acts on what the system is allowed to act on:
+
+| Who | Message | What happens |
+|---|---|---|
+| Ruth | Asks for Priya, family or a caregiver | The whole circle gets a Telegram message right away; asking is her consent. Logged in Changes. |
+| Ruth | Emergency (chest pain, fall, fainting, severe breathlessness) | The circle gets an URGENT message and the bot tells her to call 911. Logged in Changes. |
+| Ruth | Says she feels unwell, without asking for anyone | Logged in Changes for the circle; the bot uses her care plan and asks before telling Priya. |
+| Caregiver | States new care information | Saved as a draft for Priya to approve; an update draft if it changes an existing fact. |
+
+Every message's context includes Ruth's profile, the circle, every fact the sender may see, and the last three days of events. Ruth never sees caregiver-only facts. The circle is messaged at most once every 10 minutes unless the message is urgent.
+
+The emergency rule tells the circle without asking Ruth first. Change `_notify_circle` in `services/api/app/main.py` if your team decides otherwise.
+
 ## Demo controls
 
 In the Mini App as Priya, **Ruth → Demo controls**:

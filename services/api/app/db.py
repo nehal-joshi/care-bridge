@@ -61,7 +61,17 @@ def connect() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after the first demo database was created. Existing data is kept."""
+    for table, column in (("persons", "details"), ("members", "about")):
+        names = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in names:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+    conn.commit()
 
 
 def row(r: sqlite3.Row | None) -> dict[str, Any] | None:

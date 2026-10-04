@@ -22,7 +22,16 @@
         "label": "Dr. Amara Okafor, heart clinic",
         "value": "555-0110"
       }
-    ]
+    ],
+    "details": {
+      "Date of birth": "12 March 1948 (78)",
+      "Lives": "On her own in a ground-floor flat, Maplewood",
+      "Conditions": "Heart failure (since 2023), early memory loss",
+      "Heart doctor": "Dr. Amara Okafor, Maplewood heart clinic, 555-0110",
+      "Pharmacy": "Elm Street Pharmacy, 555-0133",
+      "Likes": "Milky tea, crosswords, Nat King Cole, calls with her grandchildren",
+      "Language": "English; hears better on her left side"
+    }
   },
   "members": [
     {
@@ -30,28 +39,32 @@
       "name": "Priya",
       "role": "primary",
       "relation": "Daughter",
-      "telegram_id": null
+      "telegram_id": null,
+      "about": "Ruth's daughter and primary caregiver. Lives 10 minutes away. First call for anything non-urgent: 555-0187."
     },
     {
       "id": "marcus",
       "name": "Marcus",
       "role": "aide",
       "relation": "Weekday aide",
-      "telegram_id": null
+      "telegram_id": null,
+      "about": "Weekday home aide from the care agency, Monday to Friday, 8 am to 2 pm."
     },
     {
       "id": "dev",
       "name": "Dev",
       "role": "family",
       "relation": "Son, weekends",
-      "telegram_id": null
+      "telegram_id": null,
+      "about": "Ruth's son. Lives 40 minutes away and covers weekends: 555-0164."
     },
     {
       "id": "ruth",
       "name": "Ruth",
       "role": "older_adult",
       "relation": "Herself",
-      "telegram_id": null
+      "telegram_id": null,
+      "about": "Ruth herself. Chats with the Care-Bridge bot on Telegram."
     }
   ],
   "facts": [

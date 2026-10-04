@@ -169,7 +169,7 @@ textarea { resize: vertical; }
 .feed { list-style: none; padding: 0; margin: 12px 0; }
 .feed-item { display: flex; gap: 12px; padding: 12px 14px; margin: 8px 0; }
 .feed-icon { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--bg2); font-weight: 700; }
-.feed-item.older_adult_signal .feed-icon { background: var(--warn-bg); color: var(--red); }
+.feed-item.older_adult_message .feed-icon, .feed-item.circle_notified .feed-icon, .feed-item.older_adult_signal .feed-icon { background: var(--warn-bg); color: var(--red); }
 .feed-item.responsibility_shift .feed-icon { background: var(--shift-bg); color: #6a4ae6; }
 .feed-title { font-weight: 600; }
 

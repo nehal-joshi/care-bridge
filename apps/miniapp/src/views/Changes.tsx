@@ -7,7 +7,7 @@ type Event = {
   actor: string
   fact_id: string | null
   fact_text: string | null
-  details: Record<string, string | number>
+  details: Record<string, string | number | boolean | string[]>
   created_at: string
 }
 
@@ -21,6 +21,18 @@ function describe(e: Event): { icon: string; title: string; body?: string; befor
     case 'document_uploaded':
       return { icon: '⎙', title: `${e.actor} uploaded ${e.details.filename}`,
                body: `${e.details.drafts} drafts to review, ${e.details.already_known} already in the handbook` }
+    case 'older_adult_message': {
+      const flags = [e.details.emergency ? 'Emergency' : '', e.details.asks_for_person ? 'Asked for someone' : '',
+        e.details.feeling_unwell ? 'Feeling unwell' : ''].filter(Boolean).join(' · ')
+      return { icon: '!', title: `Ruth in chat${flags ? ` · ${flags}` : ''}`, body: String(e.details.summary ?? '') }
+    }
+    case 'circle_notified': {
+      const told = Array.isArray(e.details.told) ? (e.details.told as unknown as string[]).join(', ') : ''
+      return { icon: '✉', title: `${e.details.urgent ? 'Urgent: ' : ''}Circle told${told ? ` (${told})` : ''}`,
+               body: String(e.details.summary ?? '') }
+    }
+    case 'chat_fact_draft':
+      return { icon: '✎', title: `${e.actor} shared a fact in chat, waiting for Priya's approval`, body: String(e.details.text ?? '') }
     case 'older_adult_signal':
       return { icon: '!', title: 'Ruth needed help with her care plan', body: String(e.details.summary ?? '') }
     case 'responsibility_shift':

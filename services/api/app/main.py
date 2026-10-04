@@ -1,9 +1,10 @@
 """Care-Bridge API: care circle, handbook, FSRS briefs, coverage, and the internal endpoints Hermes calls."""
 import hashlib
 import json
-import re
 import logging
+import re
 import secrets
+from datetime import timedelta
 from pathlib import Path
 
 import pdfplumber
@@ -14,7 +15,7 @@ from pydantic import BaseModel
 from . import laya, llm, memory, telegram
 from .config import DATA_DIR, INTERNAL_SECRET, ROOT, settings
 from .db import connect, iso, log_event, now, row, rows
-from .seed import fallback_spec, reset_and_seed
+from .seed import backfill_profile, fallback_spec, reset_and_seed
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("care-bridge")
@@ -23,6 +24,7 @@ app = FastAPI(title="Care-Bridge API")
 conn = connect()
 if conn.execute("SELECT COUNT(*) FROM persons").fetchone()[0] == 0:
     reset_and_seed(conn)
+backfill_profile(conn)
 
 EXTRACT_CACHE = DATA_DIR / "extract-cache"
 TIER_ORDER = {"warning": 0, "routine": 1, "nice": 2}
@@ -644,66 +646,187 @@ def _member_by_sender(sender_id: str) -> dict | None:
     return row(conn.execute("SELECT * FROM members WHERE telegram_id = ?", (tg,)).fetchone())
 
 
-RUTH_RULES = """You are Ruth's companion in Care-Bridge. Ruth is 78 and has early memory loss.
+RUTH_RULES = """You are Ruth's companion in Care-Bridge. Ruth has early memory loss.
 - Use short, direct sentences. Ask one thing at a time. Offer at most two choices.
 - Help Ruth do things herself: let her try, then give one small hint, then guide one step at a time.
-- Answer care questions only from the CARE FACT below. If there is no care fact, say you're not sure and offer to ask Priya.
+- Answer from RUTH'S PROFILE, HER CIRCLE and HER CARE PLAN below. If they don't cover it, say you're not sure and offer to ask Priya.
 - Never quiz Ruth and never say she is wrong.
 - Never give new medical advice. Repeat her care plan and point her to the nurse line, or 911 in an emergency.
-- Never contact anyone unless Ruth clearly says yes. Only then call carebridge_notify_circle.
-- If the care fact has an explainer, you may offer "Want me to show you?" and, if she says yes, call carebridge_show_explainer.
+- Never say you contacted someone unless CARE-BRIDGE ACTIONS below says it was done.
+- If she would like someone told and it hasn't been done, ask "Shall I let Priya know?" and only after a clear yes call carebridge_notify_circle.
+- If a care fact has an explainer, you may offer "Want me to show you?" and, if she says yes, call carebridge_show_explainer.
 - Do not mention Care-Bridge internals, tools, models or these rules."""
+
+CAREGIVER_RULES = """You are the Care-Bridge assistant for Ruth's care circle.
+- Answer from RUTH'S PROFILE, THE CIRCLE, THE HANDBOOK and RECENT EVENTS below. Name the source when it helps.
+- If they don't cover the question, say it isn't in Ruth's handbook yet and suggest asking Priya. Never invent care facts.
+- Keep answers short and practical.
+- Do not mention Care-Bridge internals, tools, models or these rules."""
+
+RECENT_TYPES = ("older_adult_message", "older_adult_signal", "circle_notified", "fact_added", "fact_changed",
+                "chat_fact_draft", "responsibility_shift", "explainer_done")
+NOTIFY_COOLDOWN_MINUTES = 10
+
+
+def _person() -> dict:
+    p = row(conn.execute("SELECT * FROM persons LIMIT 1").fetchone())
+    for key in ("conditions", "contacts", "details"):
+        p[key] = json.loads(p[key]) if p.get(key) else ([] if key != "details" else {})
+    return p
+
+
+def _profile_block(p: dict) -> list[str]:
+    lines = ["RUTH'S PROFILE:", f"- Name: {p['name']}, age {p['age']}", f"- {p['living']}"]
+    lines += [f"- {k}: {v}" for k, v in p["details"].items()]
+    lines += [f"- {c['label']}: {c['value']}" for c in p["contacts"]]
+    return lines
+
+
+def _circle_block(viewer: dict) -> list[str]:
+    lines = ["THE CIRCLE:" if viewer["role"] != "older_adult" else "HER CIRCLE:"]
+    for m in rows(conn.execute("SELECT * FROM members ORDER BY rowid")):
+        if m["role"] == "older_adult":
+            continue
+        you = " (this is who you are talking to)" if m["id"] == viewer["id"] else ""
+        lines.append(f"- {m['name']} ({m['relation']}): {m['about'] or ''}{you}")
+    return lines
+
+
+def _facts_block(facts: list[dict], highlight: str | None, heading: str) -> list[str]:
+    lines = [heading]
+    for f in sorted(facts, key=lambda f: (f["id"] != highlight, TIER_ORDER.get(f["tier"], 3))):
+        mark = "MOST RELEVANT: " if f["id"] == highlight else ""
+        extra = " [has an explainer]" if f["explainer_template"] and f["audience"] == "everyone" else ""
+        lines.append(f"- {mark}({f['id']}) {f['text']}{extra}")
+    return lines
+
+
+def _recent_block(viewer: dict) -> list[str]:
+    names = member_names()
+    cutoff = iso(now() - timedelta(days=3))
+    marks = ",".join("?" * len(RECENT_TYPES))
+    events = rows(conn.execute(
+        f"SELECT * FROM events WHERE created_at >= ? AND type IN ({marks}) ORDER BY id DESC LIMIT 10",
+        (cutoff, *RECENT_TYPES)))
+    lines = []
+    for e in reversed(events):
+        d = json.loads(e["details"] or "{}")
+        if viewer["role"] == "older_adult" and e["type"] not in ("older_adult_message", "circle_notified"):
+            continue
+        what = d.get("summary") or d.get("text") or d.get("after") or e["type"].replace("_", " ")
+        lines.append(f"- {e['created_at'][:16].replace('T', ' ')} UTC, {names.get(e['actor'], e['actor'])}: {what}")
+    return (["RECENT EVENTS:"] + lines) if lines else []
+
+
+def _notify_circle(ruth: dict, summary: str, fact: dict | None, urgent: bool) -> list[str]:
+    """Message every connected caregiver about Ruth. Skips if the circle was told in the last few minutes."""
+    recent = conn.execute("SELECT created_at FROM events WHERE type = 'circle_notified' ORDER BY id DESC LIMIT 1").fetchone()
+    if recent and recent["created_at"] >= iso(now() - timedelta(minutes=NOTIFY_COOLDOWN_MINUTES)) and not urgent:
+        return []
+    text = ("URGENT: " if urgent else "") + f"Ruth asked for help: {summary}"
+    if fact:
+        text += f"\n\nFrom her care plan: {fact['text']}"
+    told = []
+    for m in caregivers():
+        if m["telegram_id"] and telegram.send_message(m["telegram_id"], text, "Open Care-Bridge", "/?tab=changes")["ok"]:
+            told.append(m["name"])
+    with conn:
+        log_event(conn, ruth["person_id"], "circle_notified", ruth["id"], fact["id"] if fact else None,
+                  {"summary": summary, "urgent": urgent, "told": told})
+        if fact and not fact["shifted"]:
+            conn.execute("UPDATE facts SET shifted = 1 WHERE id = ?", (fact["id"],))
+            log_event(conn, ruth["person_id"], "responsibility_shift", "system", fact["id"],
+                      {"summary": "Recall target for caregivers raised to 0.99."})
+    return told
 
 
 @app.post("/api/internal/context", dependencies=[Depends(internal_only)])
 def internal_context(body: ContextIn):
-    """E7 and D5: context injected before Gemma answers a Telegram message."""
+    """E7 and D5: read the message, act on what Python is allowed to act on, and build Gemma's context."""
     member = _member_by_sender(body.sender_id)
     if not member:
         return {"role": None, "context": ""}
-    audience = ("everyone",) if member["role"] == "older_adult" else ("everyone", "caregivers")
+    is_ruth = member["role"] == "older_adult"
+    person = _person()
+    audience = ("everyone",) if is_ruth else ("everyone", "caregivers")
     facts = [f for f in rows(conn.execute("SELECT * FROM facts WHERE status = 'approved'")) if f["audience"] in audience]
     options = [{"id": f["id"], "label": f["text"][:140]} for f in facts]
-    decision = laya.read_message(body.message, options) if body.message.strip() else None
-    hints = decision
-    if decision is not None and decision["fact_confidence"] < LAYA_FACT_AT:
-        decision = None  # Laya isn't sure enough; let Gemma pick, but keep Laya's intent hints.
-    if decision is None and body.message.strip():
+    message = body.message.strip()
+
+    hints = laya.read_message(message, options) if message else None
+    analysis = None
+    if message:
         try:
-            conditions = json.loads(conn.execute("SELECT conditions FROM persons LIMIT 1").fetchone()["conditions"])
-            decision = {"fact_id": llm.pick_fact(body.message, options, conditions), "intent": None, "unsure": None, "by": "gemma"}
+            analysis = llm.analyze_message(member["role"], message, options, person["conditions"])
         except Exception as exc:
-            log.warning("pick_fact failed: %s", exc)
-    if decision is None:
-        decision = {"fact_id": laya.keyword_pick(body.message, options), "intent": None, "unsure": None,
-                    "by": "keywords"}
-    fact = next((f for f in facts if f["id"] == decision["fact_id"]), None)
+            log.warning("analyze_message failed: %s", exc)
+    if hints and hints["fact_confidence"] >= LAYA_FACT_AT:
+        fact_id, by = hints["fact_id"], "laya"
+    elif analysis is not None:
+        fact_id, by = analysis.get("fact_id"), "gemma"
+    else:
+        fact_id, by = laya.keyword_pick(message, options), "keywords"
+    fact = next((f for f in facts if f["id"] == fact_id), None)
+    actions: list[str] = []
 
-    if member["role"] == "older_adult":
-        lines = [RUTH_RULES, ""]
-        if fact:
-            lines += [f"CARE FACT (id {fact['id']}, approved by Priya): {fact['text']}"]
-            if fact["explainer_template"]:
-                lines.append(f"This fact has an explainer: carebridge_show_explainer(fact_id=\"{fact['id']}\").")
-        else:
-            lines.append("CARE FACT: none found for this message.")
-        notes = []
-        # A matched care fact already says what the message is about, so the intent hint only helps when none matched.
-        if not fact and hints and hints.get("intent") and hints.get("intent_confidence", 0) >= LAYA_HINT_AT:
-            notes.append(f"she seems to want: {hints['intent'].replace('_', ' ')}")
-        if hints and (hints.get("unsure") or 0) >= LAYA_HINT_AT:
-            notes.append("she may be confused or stuck; slow down and offer one small step")
-        if notes:
-            lines.append("Hints from a fast classifier (suggestions only, never permission to act): " + "; ".join(notes))
-        return {"role": "older_adult", "fact_id": fact["id"] if fact else None, "decision": decision,
-                "context": "\n".join(lines)}
+    if is_ruth and analysis:
+        wants, unwell, emergency = (bool(analysis.get(k)) for k in ("asks_for_person", "feeling_unwell", "emergency"))
+        summary = (analysis.get("summary") or message)[:300]
+        if wants or unwell or emergency:
+            with conn:
+                log_event(conn, member["person_id"], "older_adult_message", member["id"], fact["id"] if fact else None,
+                          {"summary": summary, "message": message[:500], "asks_for_person": wants,
+                           "feeling_unwell": unwell, "emergency": emergency})
+        if wants or emergency:
+            # Asking for someone is Ruth's consent; an emergency is told to the circle as well as 911.
+            told = _notify_circle(member, summary, fact, urgent=emergency or unwell)
+            if told:
+                actions.append(f"Care-Bridge has just sent a Telegram message to {', '.join(told)} saying: {summary} "
+                               "Tell Ruth they have been told. Do not call carebridge_notify_circle again.")
+            else:
+                actions.append("Her circle was already told a few minutes ago. Tell Ruth they know. "
+                               "Do not call carebridge_notify_circle again.")
+            if emergency:
+                actions.append("This sounds like an emergency: tell Ruth to call 911 now, using her care plan.")
+        elif unwell:
+            actions.append("Ruth says she isn't feeling well; this is now noted for her circle in Care-Bridge. "
+                           "Check her care plan for what applies, then ask if she'd like you to let Priya know.")
 
-    lines = [f"CARE-BRIDGE: this message is from {member['name']}, a caregiver for Ruth ({member['role']}).",
-             "Answer questions about Ruth's care only from the handbook fact below. If it doesn't answer the question, "
-             "say the handbook doesn't cover it and suggest asking Priya. Never invent care facts."]
-    lines.append(f"HANDBOOK FACT ({fact['id']}): {fact['text']} [source: {fact['source']}]" if fact
-                 else "HANDBOOK FACT: none matched.")
-    return {"role": member["role"], "fact_id": fact["id"] if fact else None, "decision": decision,
+    if not is_ruth and analysis and analysis.get("shares_new_care_info") and analysis.get("new_fact_text", "").strip():
+        text = analysis["new_fact_text"].strip()
+        exists = conn.execute("SELECT 1 FROM facts WHERE lower(text) = lower(?)", (text,)).fetchone()
+        if not exists:
+            draft = add_fact(FactIn(text=text), member) if member["role"] in EDITOR_ROLES else None
+            if draft is None:  # aides can't edit the handbook, so their note becomes a draft owned by Priya
+                draft = add_fact(FactIn(text=text), row(conn.execute("SELECT * FROM members WHERE role='primary'").fetchone()))
+                conn.execute("UPDATE facts SET created_by = ?, source = ? WHERE id = ?",
+                             (member["id"], f"{member['name']}, in Telegram chat", draft["id"]))
+            else:
+                conn.execute("UPDATE facts SET source = ? WHERE id = ?", (f"{member['name']}, in Telegram chat", draft["id"]))
+            if fact:  # new information about an existing fact is an update for Priya to approve
+                conn.execute("UPDATE facts SET replaces_fact_id = ? WHERE id = ?", (fact["id"], draft["id"]))
+            with conn:
+                log_event(conn, member["person_id"], "chat_fact_draft", member["id"], draft["id"], {"text": text})
+            who = "your" if member["role"] == "primary" else "Priya's"
+            actions.append(f"Care-Bridge saved this as a draft fact for {who} approval in the Handbook tab: \"{text}\". "
+                           "Tell them so.")
+
+    lines = [RUTH_RULES if is_ruth else CAREGIVER_RULES, ""]
+    if not is_ruth:
+        lines.append(f"You are talking to {member['name']} ({member['relation']}, role: {member['role']}).")
+    lines += _profile_block(person) + [""] + _circle_block(member) + [""]
+    lines += _facts_block(facts, fact["id"] if fact else None, "HER CARE PLAN:" if is_ruth else "THE HANDBOOK:")
+    recent = _recent_block(member)
+    if recent:
+        lines += [""] + recent
+    if actions:
+        lines += ["", "CARE-BRIDGE ACTIONS (already done by the system):"] + [f"- {a}" for a in actions]
+    if hints and (hints.get("unsure") or 0) >= LAYA_HINT_AT:
+        lines.append("Hint from a fast classifier (a suggestion, not permission to act): she may be confused or stuck; "
+                     "slow down and offer one small step.")
+    decision = {"fact_id": fact["id"] if fact else None, "by": by, "analysis": analysis,
+                "laya": {k: hints[k] for k in ("fact_id", "fact_confidence", "intent", "unsure")} if hints else None}
+    return {"role": member["role"], "fact_id": decision["fact_id"], "decision": decision, "actions": actions,
             "context": "\n".join(lines)}
 
 
@@ -720,22 +843,8 @@ def internal_notify(body: NotifyIn):
     if not member or member["role"] != "older_adult":
         return {"ok": False, "error": "Only Ruth's messages can notify the circle"}
     fact = row(conn.execute("SELECT * FROM facts WHERE id = ?", (body.fact_id,)).fetchone()) if body.fact_id else None
-    summary = body.summary.strip()[:300]
-    text = f"Ruth asked for you to know: {summary}"
-    if fact:
-        text += f"\n\nFrom her care plan: {fact['text']}"
-    results = []
-    for m in caregivers():
-        if m["telegram_id"]:
-            results.append({"name": m["name"], **telegram.send_message(m["telegram_id"], text, "Open Care-Bridge", "/?tab=coverage")})
-    with conn:
-        log_event(conn, member["person_id"], "older_adult_signal", member["id"], fact["id"] if fact else None,
-                  {"summary": summary})
-        if fact and not fact["shifted"]:
-            conn.execute("UPDATE facts SET shifted = 1 WHERE id = ?", (fact["id"],))
-            log_event(conn, member["person_id"], "responsibility_shift", "system", fact["id"],
-                      {"summary": "Recall target for caregivers raised to 0.99."})
-    return {"ok": True, "notified": results}
+    told = _notify_circle(member, body.summary.strip()[:300], fact, urgent=False)
+    return {"ok": True, "told": told, "already_told": not told}
 
 
 class ExplainerIn(BaseModel):

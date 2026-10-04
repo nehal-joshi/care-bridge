@@ -27,7 +27,9 @@ _FILE = _read_env_file(ROOT / "local.env")
 
 
 def _get(key: str, default: str = "") -> str:
-    return os.environ.get(key) or _FILE.get(key) or default
+    if key in os.environ:  # an empty environment variable deliberately overrides local.env (tests rely on this)
+        return os.environ[key] or default
+    return _FILE.get(key) or default
 
 
 def _internal_secret() -> str:

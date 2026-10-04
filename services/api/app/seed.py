@@ -40,14 +40,16 @@ def reset_and_seed(conn: sqlite3.Connection) -> dict:
 
         p = seed["person"]
         conn.execute(
-            "INSERT INTO persons (id, name, age, conditions, living, contacts) VALUES (?,?,?,?,?,?)",
-            (p["id"], p["name"], p["age"], json.dumps(p["conditions"]), p["living"], json.dumps(p["contacts"])),
+            "INSERT INTO persons (id, name, age, conditions, living, contacts, details) VALUES (?,?,?,?,?,?,?)",
+            (p["id"], p["name"], p["age"], json.dumps(p["conditions"]), p["living"], json.dumps(p["contacts"]),
+             json.dumps(p.get("details", {}))),
         )
         for m in seed["members"]:
             conn.execute(
-                "INSERT INTO members (id, person_id, name, role, relation, telegram_id, claim_code) VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO members (id, person_id, name, role, relation, telegram_id, claim_code, about)"
+                " VALUES (?,?,?,?,?,?,?,?)",
                 (m["id"], p["id"], m["name"], m["role"], m["relation"], m["telegram_id"],
-                 f"claim_{m['id']}_{secrets.token_hex(3)}"),
+                 f"claim_{m['id']}_{secrets.token_hex(3)}", m.get("about")),
             )
         created = iso(t0 - timedelta(days=45))
         for f in seed["facts"]:
@@ -102,3 +104,13 @@ def reset_and_seed(conn: sqlite3.Connection) -> dict:
 
 def fallback_spec(template: str) -> dict | None:
     return load_seed().get("explainers", {}).get(template)
+
+
+def backfill_profile(conn: sqlite3.Connection) -> None:
+    """Fill profile details on a database seeded before they existed, without touching anything else."""
+    seed = load_seed()
+    with conn:
+        conn.execute("UPDATE persons SET details = ? WHERE id = ? AND details IS NULL",
+                     (json.dumps(seed["person"].get("details", {})), seed["person"]["id"]))
+        for m in seed["members"]:
+            conn.execute("UPDATE members SET about = ? WHERE id = ? AND about IS NULL", (m.get("about"), m["id"]))

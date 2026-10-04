@@ -7,6 +7,8 @@ os.environ["LAYA_URL"] = "http://127.0.0.1:9"  # nothing listens here, so Laya f
 os.environ["OLLAMA_URL"] = "http://127.0.0.1:9"  # keep tests offline and deterministic
 os.environ["CAREBRIDGE_DEV_AUTH"] = "1"  # tests sign in with X-Dev-User
 os.environ["CAREBRIDGE_TELEGRAM_IDS"] = ""
+os.environ["TELEGRAM_BOT_TOKEN"] = ""  # never message real people from tests
+os.environ["CAREBRIDGE_PUBLIC_URL"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -77,3 +79,38 @@ def test_ruth_context_filters_caregiver_only_facts():
     assert ctx["role"] == "older_adult"
     assert "pudding" not in ctx["context"]
     assert ctx["fact_id"] == "weight_rule"
+
+
+def test_ruth_context_has_profile_and_circle():
+    h = {"X-Internal-Secret": INTERNAL_SECRET}
+    ctx = client.post("/api/internal/context", json={"sender_id": "4242", "message": "How old am I?"}, headers=h).json()
+    assert "age 78" in ctx["context"] and "Priya (Daughter)" in ctx["context"]
+    assert "Dr. Amara Okafor" in ctx["context"]
+
+
+def test_ruth_asking_for_priya_notifies_circle_without_a_tool_call(monkeypatch):
+    from app import llm
+    monkeypatch.setattr(llm, "analyze_message", lambda *a, **k: {
+        "fact_id": None, "asks_for_person": True, "feeling_unwell": True, "emergency": False,
+        "summary": "Ruth feels unwell and wants Priya to call her."})
+    h = {"X-Internal-Secret": INTERNAL_SECRET}
+    ctx = client.post("/api/internal/context", json={"sender_id": "4242", "message": "I feel unwell, call Priya"},
+                      headers=h).json()
+    assert ctx["actions"], ctx
+    types = [e["type"] for e in client.get("/api/changes", headers=PRIYA).json()[:3]]
+    assert "older_adult_message" in types and "circle_notified" in types
+
+
+def test_caregiver_chat_fact_becomes_a_draft(monkeypatch):
+    from app import llm
+    monkeypatch.setattr(llm, "analyze_message", lambda *a, **k: {
+        "fact_id": None, "shares_new_care_info": True, "new_fact_text": "Ruth's reading glasses are on the hall table."})
+    from app.main import conn
+    conn.execute("UPDATE members SET telegram_id = 5151 WHERE id = 'marcus'")
+    conn.commit()
+    h = {"X-Internal-Secret": INTERNAL_SECRET}
+    ctx = client.post("/api/internal/context", json={"sender_id": "5151", "message": "FYI her glasses are on the hall table"},
+                      headers=h).json()
+    assert "draft" in " ".join(ctx["actions"])
+    drafts = [f for f in client.get("/api/facts", headers=PRIYA).json() if f["status"] == "draft"]
+    assert any("reading glasses" in f["text"] for f in drafts)

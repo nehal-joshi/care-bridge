@@ -155,3 +155,50 @@ def grade_answer(question: str, approved_answer: str, caregiver_answer: str) -> 
     r = chat_json(system, f"Question: {question}\nCorrect answer: {approved_answer}\nCaregiver's answer: {caregiver_answer}",
                   schema, timeout=60.0)
     return {"grade": r["grade"], "reason": r.get("reason", ""), "by": "gemma"}
+
+
+def analyze_message(role: str, message: str, facts: list[dict], conditions: list[str]) -> dict:
+    """Read one chat message: which fact it is about, and what the sender needs. Python decides what to do with it."""
+    ids = [f["id"] for f in facts] + ["none"]
+    listing = "\n".join(f"- {f['id']}: {f['label']}" for f in facts)
+    if role == "older_adult":
+        props = {
+            "reason": {"type": "string"},
+            "fact_id": {"type": "string", "enum": ids},
+            "asks_for_person": {"type": "boolean"},
+            "feeling_unwell": {"type": "boolean"},
+            "emergency": {"type": "boolean"},
+            "summary": {"type": "string"},
+        }
+        system = (
+            f"You read a message from Ruth, an older adult with {', '.join(conditions)}, to her care companion. "
+            "First write a one-sentence reason. Then:\n"
+            "- fact_id: the care fact that best answers or relates to the message (symptoms count: swelling relates to "
+            "weight gain from fluid), or \"none\".\n"
+            "- asks_for_person: true only if she asks to contact, call, tell or get Priya, her family, a caregiver or "
+            "someone to help her.\n"
+            "- feeling_unwell: true if she says she feels ill, unwell, in pain, dizzy, scared or needs help.\n"
+            "- emergency: true only for chest pain, fainting, a fall, severe trouble breathing or anything life-threatening.\n"
+            "- summary: one short sentence in the third person saying what Ruth said, for her family to read."
+        )
+    else:
+        props = {
+            "reason": {"type": "string"},
+            "fact_id": {"type": "string", "enum": ids},
+            "shares_new_care_info": {"type": "boolean"},
+            "new_fact_text": {"type": "string"},
+        }
+        system = (
+            "You read a message from a caregiver for Ruth, an older adult, to the Care-Bridge assistant. "
+            "First write a one-sentence reason. Then:\n"
+            "- fact_id: the handbook fact that best answers or relates to the message, or \"none\".\n"
+            "- shares_new_care_info: true only if the caregiver states new information about Ruth's care that should be "
+            "remembered (a routine, preference, medicine, symptom to watch, instruction). Questions are false.\n"
+            "- new_fact_text: if true, the NEW information as one plain sentence about Ruth, written from the caregiver's "
+            "message. Never copy a handbook fact; if it changes one, write the new version. Otherwise an empty string."
+        )
+    schema = {"type": "object", "properties": props, "required": list(props)}
+    result = chat_json(system, f"Care facts:\n{listing}\n\nMessage: {message}", schema, timeout=60.0)
+    if result.get("fact_id") not in ids or result.get("fact_id") == "none":
+        result["fact_id"] = None
+    return result

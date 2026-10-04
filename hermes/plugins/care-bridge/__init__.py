@@ -76,8 +76,10 @@ def _handle_notify(args: dict, **kwargs) -> str:
         "summary": str(args.get("summary", "")),
         "fact_id": args.get("fact_id") or None,
     })
+    if result.get("ok") and result.get("already_told"):
+        return json.dumps({"ok": True, "message": "Ruth's circle was already told a few minutes ago."})
     if result.get("ok"):
-        return json.dumps({"ok": True, "message": "Priya and Ruth's caregivers have been told."})
+        return json.dumps({"ok": True, "message": f"Told: {', '.join(result.get('told') or []) or 'her circle'}."})
     return json.dumps(result)
 
 
