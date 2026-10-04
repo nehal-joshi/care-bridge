@@ -16,6 +16,8 @@ Then open `http://localhost:8000`. See the [runbook](docs/hackathon/runbook.md) 
 services/api/                 FastAPI + SQLite + Py-FSRS; Gemma (Ollama) and Laya clients; Telegram send-only client
 apps/miniapp/                 Caregiver Telegram Mini App (React + TypeScript)
 apps/explainer/               Ruth's explainer player (Three.js), served at /explain/
+web/                          Next.js landing page (Amey)
+app/                          Standalone prototype server and dashboard (Kush); also uses port 8000 and polls the bot when given a token, so don't run it next to the API and Hermes
 hermes/plugins/care-bridge/   Hermes plugin: role-aware context and two tools; deploy with hermes/deploy.sh
 demo/                         Seed data, fictional discharge PDF and its generator
 scripts/start.sh              Builds both web apps and starts the API on port 8000
