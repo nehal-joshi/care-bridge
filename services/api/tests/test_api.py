@@ -114,3 +114,42 @@ def test_caregiver_chat_fact_becomes_a_draft(monkeypatch):
     assert "draft" in " ".join(ctx["actions"])
     drafts = [f for f in client.get("/api/facts", headers=PRIYA).json() if f["status"] == "draft"]
     assert any("reading glasses" in f["text"] for f in drafts)
+
+
+def test_today_checklist_tick_and_untick():
+    view = client.get("/api/today", headers=MARCUS).json()
+    assert view["summary"]["total"] >= 9
+    open_item = next(i for i in view["items"] if not i["log"])
+    log = client.post("/api/logs", json={"schedule_id": open_item["schedule"]["id"], "status": "done"}, headers=MARCUS).json()
+    assert log["status"] == "done" and log["logged_by"] == "marcus"
+    after = client.get("/api/today", headers=PRIYA).json()
+    assert after["summary"]["done"] == view["summary"]["done"] + 1
+    client.delete(f"/api/logs/{log['id']}", headers=MARCUS)
+    assert client.get("/api/today", headers=PRIYA).json()["summary"]["done"] == view["summary"]["done"]
+
+
+def test_schedule_add_edit_remove_shows_in_changes():
+    s = client.post("/api/schedules", json={"category": "health", "title": "Blood pressure check", "time": "14:00",
+                                            "details": "Write it on the fridge sheet"}, headers=PRIYA).json()
+    client.patch(f"/api/schedules/{s['id']}", json={"time": "14:30"}, headers=MARCUS)
+    client.delete(f"/api/schedules/{s['id']}", headers=MARCUS)
+    types = [e["type"] for e in client.get("/api/changes", headers=PRIYA).json()[:3]]
+    assert types[:3] == ["schedule_removed", "schedule_changed", "schedule_added"]
+    assert client.post("/api/schedules", json={"category": "food", "title": "x", "time": "25:00"}, headers=PRIYA).status_code == 400
+
+
+def test_one_off_entry_and_refusal():
+    e = client.post("/api/logs", json={"category": "health", "title": "Weight", "note": "164.0 lb"}, headers=MARCUS).json()
+    assert e["schedule_id"] is None
+    client.delete(f"/api/logs/{e['id']}", headers=MARCUS)
+
+
+def test_reports_pdf_csv_and_signed_link():
+    link = client.post("/api/reports/link", json={"period": "week", "format": "pdf"}, headers=PRIYA).json()
+    pdf = client.get(link["path"])
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+    link = client.post("/api/reports/link", json={"period": "month", "format": "csv"}, headers=PRIYA).json()
+    csv_text = client.get(link["path"]).text
+    assert csv_text.startswith("date,time,category,item") and "Furosemide" in csv_text
+    assert client.get(link["path"].replace("sig=", "sig=0")).status_code == 403
+    assert client.post("/api/reports/link", json={"period": "week"}, headers=MARCUS).status_code == 403

@@ -102,6 +102,18 @@ How Care-Bridge uses Laya (multilingual model), based on testing with the demo f
 
 Studio runs at `http://localhost:8888`. Start it after a reboot with `unsloth studio -p 8888`.
 
+## Daily logs and reports
+
+The **Today** tab (the default for everyone) is Ruth's daily checklist: medicines, meals, health checks and other routines.
+
+- Tick a box to mark an item done; untick to clear it. **More** marks it skipped or refused with a note, edits the schedule item or removes it.
+- **+ Add to schedule** adds a recurring item (every day, weekdays or weekends). **+ Log something** records a one-off entry such as a weight or blood pressure reading.
+- Every caregiver can add, edit and remove schedule items and logs. Schedule changes and refusals appear in Changes.
+- Priya's **Reports** panel makes a PDF or CSV for the last 7 or 30 days: completion per item, missed items, notes and refusals, other entries and who logged what. Inside Telegram she can also have the bot send the PDF to her chat.
+- The chat assistant knows today's checklist, so "Did Ruth get her morning pills?" works. Ruth's chat sees only item names and status, not caregiver details or notes.
+
+The seed includes 9 schedule items and two weeks of history. A database created earlier gets them added automatically on start.
+
 ## What the bot does with chat messages
 
 Before Gemma answers any Telegram message, the API reads it (Laya when confident, otherwise Gemma) and acts on what the system is allowed to act on:

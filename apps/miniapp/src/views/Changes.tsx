@@ -33,6 +33,15 @@ function describe(e: Event): { icon: string; title: string; body?: string; befor
     }
     case 'chat_fact_draft':
       return { icon: '✎', title: `${e.actor} shared a fact in chat, waiting for Priya's approval`, body: String(e.details.text ?? '') }
+    case 'schedule_added':
+      return { icon: '+', title: `${e.actor} added ${e.details.time} ${e.details.title} to the daily schedule`, body: String(e.details.details ?? '') }
+    case 'schedule_changed':
+      return { icon: '✎', title: `${e.actor} changed a daily schedule item`, body: String(e.details.after ?? ''),
+               before: e.details.before ? String(e.details.before) : undefined }
+    case 'schedule_removed':
+      return { icon: '−', title: `${e.actor} removed ${e.details.title} from the daily schedule` }
+    case 'log_refused':
+      return { icon: '!', title: `Ruth refused ${e.details.title} (logged by ${e.actor})`, body: String(e.details.note ?? '') }
     case 'older_adult_signal':
       return { icon: '!', title: 'Ruth needed help with her care plan', body: String(e.details.summary ?? '') }
     case 'responsibility_shift':

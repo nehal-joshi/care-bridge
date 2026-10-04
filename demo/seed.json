@@ -438,5 +438,70 @@
         }
       ]
     }
-  }
+  },
+  "schedules": [
+    {
+      "id": "s_weigh",
+      "category": "health",
+      "time": "07:45",
+      "title": "Weigh-in",
+      "details": "After the toilet, before breakfast. Write it on the fridge sheet."
+    },
+    {
+      "id": "s_breakfast",
+      "category": "food",
+      "time": "08:00",
+      "title": "Breakfast",
+      "details": "Low salt. Counts toward 1.5 L fluids."
+    },
+    {
+      "id": "s_furosemide",
+      "category": "medicine",
+      "time": "08:00",
+      "title": "Furosemide (water pill)",
+      "details": "20 mg with breakfast. Never in the evening."
+    },
+    {
+      "id": "s_lisinopril",
+      "category": "medicine",
+      "time": "08:00",
+      "title": "Lisinopril",
+      "details": "10 mg"
+    },
+    {
+      "id": "s_walk",
+      "category": "other",
+      "time": "10:30",
+      "title": "Short walk with walker",
+      "details": "Brakes on before she stands."
+    },
+    {
+      "id": "s_lunch",
+      "category": "food",
+      "time": "12:30",
+      "title": "Lunch",
+      "details": "No canned soup or deli meat."
+    },
+    {
+      "id": "s_tea",
+      "category": "food",
+      "time": "15:00",
+      "title": "Afternoon tea",
+      "details": "Milky, no sugar. Counts toward fluids."
+    },
+    {
+      "id": "s_dinner",
+      "category": "food",
+      "time": "18:30",
+      "title": "Dinner",
+      "details": "Low salt."
+    },
+    {
+      "id": "s_metoprolol",
+      "category": "medicine",
+      "time": "19:15",
+      "title": "Metoprolol",
+      "details": "25 mg with chocolate pudding, after the 7 pm news."
+    }
+  ]
 }

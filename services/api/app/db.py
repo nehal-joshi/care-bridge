@@ -40,6 +40,15 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE TABLE IF NOT EXISTS explainers (
   id TEXT PRIMARY KEY, fact_id TEXT, fact_version INTEGER, spec TEXT, created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS schedules (
+  id TEXT PRIMARY KEY, person_id TEXT, category TEXT, title TEXT, details TEXT, time TEXT,
+  days TEXT DEFAULT 'daily', active INTEGER DEFAULT 1, created_by TEXT, created_at TEXT, updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, person_id TEXT, date TEXT, schedule_id TEXT, category TEXT, title TEXT,
+  status TEXT, note TEXT, logged_by TEXT, logged_at TEXT, updated_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS logs_one_per_schedule_day ON logs (schedule_id, date) WHERE schedule_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY, person_id TEXT, filename TEXT, sha256 TEXT, uploaded_by TEXT,
   summary TEXT, created_at TEXT

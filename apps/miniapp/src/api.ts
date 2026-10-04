@@ -8,6 +8,9 @@ type TelegramWebApp = {
   colorScheme?: 'light' | 'dark'
   HapticFeedback?: { notificationOccurred: (t: 'success' | 'warning' | 'error') => void; impactOccurred: (s: 'light' | 'medium') => void }
   openTelegramLink?: (url: string) => void
+  openLink?: (url: string) => void
+  downloadFile?: (params: { url: string; file_name: string }, callback?: (accepted: boolean) => void) => void
+  isVersionAtLeast?: (version: string) => boolean
 }
 
 declare global {
@@ -125,4 +128,40 @@ export function relativeTime(iso: string): string {
   const text = minutes < 1 ? 'just now' : minutes < 60 ? `${minutes} min` : hours < 24 ? `${hours} h` : `${days} day${days === 1 ? '' : 's'}`
   if (text === 'just now') return text
   return diff > 0 ? `in ${text}` : `${text} ago`
+}
+
+export type Schedule = {
+  id: string
+  category: 'medicine' | 'food' | 'health' | 'other'
+  title: string
+  details: string
+  time: string
+  days: string
+  active: number
+}
+
+export type LogEntry = {
+  id: number
+  date: string
+  schedule_id: string | null
+  category: string
+  title: string
+  status: 'done' | 'skipped' | 'refused'
+  note: string | null
+  logged_by: string
+  logged_by_name: string
+  logged_at: string
+}
+
+export type DayView = {
+  date: string
+  is_today: boolean
+  items: { schedule: Schedule; log: LogEntry | null }[]
+  extra: LogEntry[]
+  summary: { done: number; total: number; open: number }
+  categories: Record<string, string>
+}
+
+export function localTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }

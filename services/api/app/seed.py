@@ -4,12 +4,13 @@ import secrets
 import sqlite3
 from datetime import timedelta
 
-from . import memory
+from . import daily, memory
 from .config import DEMO_DIR, settings
 from .db import iso, log_event, now
 
 SEED_FILE = DEMO_DIR / "seed.json"
-TABLES = ("persons", "members", "invites", "facts", "cards", "reviews", "events", "explainers", "documents")
+TABLES = ("persons", "members", "invites", "facts", "cards", "reviews", "events", "explainers", "documents",
+          "schedules", "logs")
 
 
 def _telegram_ids() -> dict[str, int]:
@@ -92,6 +93,8 @@ def reset_and_seed(conn: sqlite3.Connection) -> dict:
                           {"summary": "Recall target for caregivers raised to 0.99."},
                           at=t0 - timedelta(days=e["days_ago"]) + timedelta(minutes=1))
 
+        daily.seed_schedules(conn, seed)
+
         for template, spec in seed.get("explainers", {}).items():
             for fid, f in facts.items():
                 if f.get("explainer_template") == template:
@@ -114,3 +117,5 @@ def backfill_profile(conn: sqlite3.Connection) -> None:
                      (json.dumps(seed["person"].get("details", {})), seed["person"]["id"]))
         for m in seed["members"]:
             conn.execute("UPDATE members SET about = ? WHERE id = ? AND about IS NULL", (m.get("about"), m["id"]))
+        if conn.execute("SELECT COUNT(*) FROM schedules").fetchone()[0] == 0:
+            daily.seed_schedules(conn, seed)

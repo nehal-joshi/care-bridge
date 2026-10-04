@@ -5,10 +5,12 @@ import Changes from './views/Changes'
 import Circle from './views/Circle'
 import Coverage from './views/Coverage'
 import Handbook from './views/Handbook'
+import Today from './views/Today'
 
-type Tab = 'brief' | 'handbook' | 'coverage' | 'changes' | 'circle'
+type Tab = 'today' | 'brief' | 'handbook' | 'coverage' | 'changes' | 'circle'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'today', label: 'Today', icon: '☑' },
   { id: 'brief', label: 'Brief', icon: '◷' },
   { id: 'handbook', label: 'Handbook', icon: '▤' },
   { id: 'coverage', label: 'Coverage', icon: '◉' },
@@ -22,16 +24,16 @@ const DEV_USERS = [
   { id: 'dev', label: 'Dev' },
 ]
 
-function initialTab(role?: string): Tab {
+function initialTab(): Tab {
   const fromUrl = new URLSearchParams(window.location.search).get('tab') as Tab | null
   if (fromUrl && TABS.some(t => t.id === fromUrl)) return fromUrl
-  return role === 'primary' ? 'handbook' : 'brief'
+  return 'today'
 }
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
-  const [tab, setTab] = useState<Tab>('brief')
+  const [tab, setTab] = useState<Tab>('today')
   const [devUser, setDevUserState] = useState(getDevUser())
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -48,7 +50,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    load().then(data => setTab(initialTab(data?.member.role)))
+    load().then(() => setTab(initialTab()))
   }, [load, devUser])
 
   const refresh = () => { setRefreshKey(k => k + 1); load() }
@@ -105,6 +107,7 @@ export default function App() {
       </header>
 
       <main className="content" key={`${tab}-${devUser}-${refreshKey}`}>
+        {tab === 'today' && <Today me={me} />}
         {tab === 'brief' && <Brief me={me} />}
         {tab === 'handbook' && <Handbook me={me} onChanged={refresh} />}
         {tab === 'coverage' && <Coverage />}

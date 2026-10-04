@@ -60,3 +60,17 @@ def send_message(chat_id: int, text: str, button_text: str | None = None, path: 
         log.warning("sendMessage failed: %s", result.get("description"))
         return {"ok": False, "error": result.get("description")}
     return {"ok": True, "button": bool(url)}
+
+
+def send_document(chat_id: int, data: bytes, file_name: str, mime: str, caption: str = "") -> dict:
+    if not settings.bot_token:
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN is not set"}
+    try:
+        with httpx.Client(timeout=30) as client:
+            response = client.post(f"https://api.telegram.org/bot{settings.bot_token}/sendDocument",
+                                   data={"chat_id": str(chat_id), "caption": caption},
+                                   files={"document": (file_name, data, mime)})
+        result = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        return {"ok": False, "error": type(exc).__name__}
+    return {"ok": bool(result.get("ok")), "error": result.get("description")}

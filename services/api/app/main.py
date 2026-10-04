@@ -1,18 +1,21 @@
-"""Care-Bridge API: care circle, handbook, FSRS briefs, coverage, and the internal endpoints Hermes calls."""
+"""Care-Bridge API: care circle, handbook, FSRS briefs, coverage, daily logs, and the internal endpoints Hermes calls."""
 import hashlib
+import hmac
 import json
 import logging
 import re
 import secrets
+import time
 from datetime import timedelta
 from pathlib import Path
 
 import pdfplumber
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import laya, llm, memory, telegram
+from . import daily, laya, llm, memory, telegram
 from .config import DATA_DIR, INTERNAL_SECRET, ROOT, settings
 from .db import connect, iso, log_event, now, row, rows
 from .seed import backfill_profile, fallback_spec, reset_and_seed
@@ -631,6 +634,242 @@ def explainer_done(exp_id: str, member: dict = Depends(current_member)):
     return {"ok": True}
 
 
+
+# ---------- daily schedules, logs and reports ----------
+
+def require_caregiver(member: dict) -> None:
+    if member["role"] not in memory.CAREGIVER_ROLES:
+        raise HTTPException(403, "Only caregivers can do this")
+
+
+def get_schedule(schedule_id: str) -> dict:
+    s = row(conn.execute("SELECT * FROM schedules WHERE id = ?", (schedule_id,)).fetchone())
+    if not s:
+        raise HTTPException(404, "Schedule item not found")
+    return s
+
+
+@app.get("/api/today")
+def today_view(date: str = "", member: dict = Depends(current_member)):
+    require_caregiver(member)
+    try:
+        day = daily.parse_day(date)
+    except ValueError:
+        raise HTTPException(400, "Use a YYYY-MM-DD date")
+    view = daily.day_view(conn, day, member_names())
+    view["is_today"] = day == daily.today()
+    view["categories"] = daily.CATEGORIES
+    return view
+
+
+class ScheduleIn(BaseModel):
+    category: str
+    title: str
+    time: str
+    details: str = ""
+    days: str = "daily"
+
+
+def _clean_schedule(body) -> dict:
+    data = {k: (v.strip() if isinstance(v, str) else v) for k, v in body.model_dump(exclude_none=True).items()}
+    if "category" in data and data["category"] not in daily.CATEGORIES:
+        raise HTTPException(400, "Unknown category")
+    if "time" in data and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", data["time"]):
+        raise HTTPException(400, "Time must be HH:MM")
+    if "days" in data:
+        days = data["days"].lower()
+        if days != "daily" and not all(d in daily.WEEKDAYS for d in days.split(",")):
+            raise HTTPException(400, "Days must be 'daily' or a list like mon,wed,fri")
+        data["days"] = days
+    if "title" in data and not data["title"]:
+        raise HTTPException(400, "Give it a name")
+    return data
+
+
+@app.post("/api/schedules")
+def add_schedule(body: ScheduleIn, member: dict = Depends(current_member)):
+    require_caregiver(member)
+    data = _clean_schedule(body)
+    sid, t = daily.new_schedule_id(), iso(now())
+    with conn:
+        conn.execute("INSERT INTO schedules (id, person_id, category, title, details, time, days, active, created_by,"
+                     " created_at, updated_at) VALUES (?,?,?,?,?,?,?,1,?,?,?)",
+                     (sid, member["person_id"], data["category"], data["title"], data.get("details", ""), data["time"],
+                      data.get("days", "daily"), member["id"], t, t))
+        daily.log_schedule_event(conn, member["person_id"], "schedule_added", member["id"], get_schedule(sid))
+    return get_schedule(sid)
+
+
+class SchedulePatch(BaseModel):
+    category: str | None = None
+    title: str | None = None
+    time: str | None = None
+    details: str | None = None
+    days: str | None = None
+
+
+@app.patch("/api/schedules/{schedule_id}")
+def edit_schedule(schedule_id: str, body: SchedulePatch, member: dict = Depends(current_member)):
+    require_caregiver(member)
+    before = get_schedule(schedule_id)
+    data = _clean_schedule(body)
+    if not data:
+        return before
+    sets = ", ".join(f"{k} = ?" for k in data)
+    with conn:
+        conn.execute(f"UPDATE schedules SET {sets}, updated_at = ? WHERE id = ?", (*data.values(), iso(now()), schedule_id))
+        daily.log_schedule_event(conn, member["person_id"], "schedule_changed", member["id"], get_schedule(schedule_id),
+                                 before)
+    return get_schedule(schedule_id)
+
+
+@app.delete("/api/schedules/{schedule_id}")
+def remove_schedule(schedule_id: str, member: dict = Depends(current_member)):
+    """Removing keeps past ticks for reports; the item just stops appearing from today."""
+    require_caregiver(member)
+    s = get_schedule(schedule_id)
+    with conn:
+        conn.execute("UPDATE schedules SET active = 0, updated_at = ? WHERE id = ?", (iso(now()), schedule_id))
+        daily.log_schedule_event(conn, member["person_id"], "schedule_removed", member["id"], s)
+    return {"ok": True}
+
+
+class LogIn(BaseModel):
+    date: str = ""
+    schedule_id: str | None = None
+    status: str = "done"
+    note: str = ""
+    category: str = "other"
+    title: str = ""
+
+
+@app.post("/api/logs")
+def add_log(body: LogIn, member: dict = Depends(current_member)):
+    """Tick a schedule item (or change its status), or log a one-off entry."""
+    require_caregiver(member)
+    if body.status not in daily.STATUSES:
+        raise HTTPException(400, "Status must be done, skipped or refused")
+    day = daily.parse_day(body.date)
+    if day > daily.today():
+        raise HTTPException(400, "Can't log a future day")
+    t = iso(now())
+    note = body.note.strip()[:500] or None
+    with conn:
+        if body.schedule_id:
+            s = get_schedule(body.schedule_id)
+            existing = conn.execute("SELECT id FROM logs WHERE schedule_id = ? AND date = ?",
+                                    (s["id"], day.isoformat())).fetchone()
+            if existing:
+                conn.execute("UPDATE logs SET status = ?, note = ?, logged_by = ?, logged_at = ?, updated_at = ? WHERE id = ?",
+                             (body.status, note, member["id"], t, t, existing["id"]))
+                log_id = existing["id"]
+            else:
+                log_id = conn.execute(
+                    "INSERT INTO logs (person_id, date, schedule_id, category, title, status, note, logged_by, logged_at,"
+                    " updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (member["person_id"], day.isoformat(), s["id"], s["category"], s["title"], body.status, note,
+                     member["id"], t, t)).lastrowid
+            if body.status == "refused":
+                log_event(conn, member["person_id"], "log_refused", member["id"], None,
+                          {"title": s["title"], "note": note or "", "date": day.isoformat()})
+        else:
+            if body.category not in daily.CATEGORIES or not body.title.strip():
+                raise HTTPException(400, "Give the entry a category and a name")
+            log_id = conn.execute(
+                "INSERT INTO logs (person_id, date, schedule_id, category, title, status, note, logged_by, logged_at,"
+                " updated_at) VALUES (?,?,NULL,?,?,?,?,?,?,?)",
+                (member["person_id"], day.isoformat(), body.category, body.title.strip()[:120], body.status, note,
+                 member["id"], t, t)).lastrowid
+    return row(conn.execute("SELECT * FROM logs WHERE id = ?", (log_id,)).fetchone())
+
+
+class LogPatch(BaseModel):
+    status: str | None = None
+    note: str | None = None
+    title: str | None = None
+
+
+@app.patch("/api/logs/{log_id}")
+def edit_log(log_id: int, body: LogPatch, member: dict = Depends(current_member)):
+    require_caregiver(member)
+    if not conn.execute("SELECT 1 FROM logs WHERE id = ?", (log_id,)).fetchone():
+        raise HTTPException(404, "Log entry not found")
+    data = body.model_dump(exclude_none=True)
+    if "status" in data and data["status"] not in daily.STATUSES:
+        raise HTTPException(400, "Status must be done, skipped or refused")
+    if data:
+        sets = ", ".join(f"{k} = ?" for k in data)
+        with conn:
+            conn.execute(f"UPDATE logs SET {sets}, logged_by = ?, updated_at = ? WHERE id = ?",
+                         (*data.values(), member["id"], iso(now()), log_id))
+    return row(conn.execute("SELECT * FROM logs WHERE id = ?", (log_id,)).fetchone())
+
+
+@app.delete("/api/logs/{log_id}")
+def delete_log(log_id: int, member: dict = Depends(current_member)):
+    """Unticking a box deletes its log entry."""
+    require_caregiver(member)
+    with conn:
+        conn.execute("DELETE FROM logs WHERE id = ?", (log_id,))
+    return {"ok": True}
+
+
+def _report_token(member_id: str, period: str, fmt: str, expires: int) -> str:
+    msg = f"{member_id}|{period}|{fmt}|{expires}".encode()
+    return hmac.new(INTERNAL_SECRET.encode(), msg, hashlib.sha256).hexdigest()
+
+
+def _build_report(period: str, fmt: str) -> tuple[bytes, str, str]:
+    if period not in ("week", "month") or fmt not in ("pdf", "csv"):
+        raise HTTPException(400, "Choose week or month, and pdf or csv")
+    start, end = daily.period_range(period)
+    names = member_names()
+    person = row(conn.execute("SELECT name FROM persons LIMIT 1").fetchone())["name"]
+    name = f"care-bridge-{period}-{start:%Y%m%d}-{end:%Y%m%d}.{fmt}"
+    if fmt == "csv":
+        return daily.report_csv(conn, start, end, names), name, "text/csv"
+    return daily.report_pdf(daily.report_data(conn, start, end, names), person), name, "application/pdf"
+
+
+class ReportIn(BaseModel):
+    period: str = "week"
+    format: str = "pdf"
+
+
+@app.post("/api/reports/link")
+def report_link(body: ReportIn, member: dict = Depends(current_member)):
+    """A short-lived download link, so Telegram's downloadFile (which can't send headers) can fetch the report."""
+    require_primary(member)
+    expires = int(time.time()) + 600
+    token = _report_token(member["id"], body.period, body.format, expires)
+    path = f"/api/reports/file?period={body.period}&format={body.format}&m={member['id']}&exp={expires}&sig={token}"
+    return {"path": path, "url": (settings.public_url + path) if settings.public_url else path,
+            "file_name": _build_report(body.period, body.format)[1]}
+
+
+@app.get("/api/reports/file")
+def report_file(period: str, format: str, m: str, exp: int, sig: str):
+    if exp < time.time() or not hmac.compare_digest(sig, _report_token(m, period, format, exp)):
+        raise HTTPException(403, "This report link has expired. Create a new one in Care-Bridge.")
+    data, name, mime = _build_report(period, format)
+    return Response(data, media_type=mime, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.post("/api/reports/send")
+def report_send(body: ReportIn, member: dict = Depends(current_member)):
+    """Send the report to the requester's Telegram chat as a document."""
+    require_primary(member)
+    if not member["telegram_id"]:
+        raise HTTPException(400, "Your Telegram account isn't connected")
+    data, name, mime = _build_report(body.period, body.format)
+    start, end = daily.period_range(body.period)
+    result = telegram.send_document(member["telegram_id"], data, name, mime,
+                                    f"Ruth's {body.period}ly care report, {start:%d %b} to {end:%d %b}.")
+    if not result["ok"]:
+        raise HTTPException(502, f"Telegram didn't accept the file: {result.get('error')}")
+    return {"ok": True, "file_name": name}
+
+
 # ---------- internal endpoints for the Hermes plugin ----------
 
 class ContextIn(BaseModel):
@@ -676,6 +915,10 @@ EVENT_LABELS = {
     "responsibility_shift": "Caregivers now hold this fact",
     "explainer_done": "Finished a guide",
     "member_joined": "Joined",
+    "schedule_added": "Added to the daily schedule",
+    "schedule_changed": "Daily schedule changed",
+    "schedule_removed": "Removed from the daily schedule",
+    "log_refused": "Refused",
 }
 RUTH_EVENT_TYPES = ("older_adult_message", "circle_notified", "explainer_done")
 NOTIFY_COOLDOWN_MINUTES = 10
@@ -875,6 +1118,7 @@ def internal_context(body: ContextIn):
         lines.append(f"You are talking to {member['name']} ({member['relation']}, role: {member['role']}).")
     lines += _profile_block(person) + [""] + _circle_block(member) + [""]
     lines += _facts_block(facts, fact["id"] if fact else None, "HER CARE PLAN:" if is_ruth else "THE HANDBOOK:")
+    lines += [""] + daily.context_lines(conn, member_names(), for_ruth=is_ruth)
     if not is_ruth:
         lines += [""] + _state_block(member)
     recent = _recent_block(member)
