@@ -125,3 +125,18 @@ def reachable() -> bool:
             return client.get(f"{settings.ollama_url}/api/tags").status_code == 200
     except httpx.HTTPError:
         return False
+
+
+def pick_fact(message: str, facts: list[dict], conditions: list[str] | None = None) -> str | None:
+    """Fallback when Laya is down: ask Gemma which approved fact answers the message."""
+    ids = [f["id"] for f in facts] + ["none"]
+    schema = {"type": "object",
+              "properties": {"reason": {"type": "string"}, "fact_id": {"type": "string", "enum": ids}},
+              "required": ["reason", "fact_id"]}
+    listing = "\n".join(f"- {f['id']}: {f['label']}" for f in facts)
+    about = f"Ruth's conditions: {', '.join(conditions)}.\n" if conditions else ""
+    system = ("You match a message from Ruth, an older adult, to her care plan. " + about +
+              "First write a one-sentence reason: what symptom or need the message describes and which fact's "
+              "instruction applies, given her conditions. Then pick that fact's id, or \"none\" if no fact applies.")
+    choice = chat_json(system, f"Care facts:\n{listing}\n\nMessage: {message}", schema, timeout=30.0).get("fact_id")
+    return choice if choice in ids and choice != "none" else None

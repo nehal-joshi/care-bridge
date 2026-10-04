@@ -4,170 +4,425 @@
     "id": "ruth",
     "name": "Ruth Alvarez",
     "age": 78,
-    "conditions": ["Heart failure", "Early memory loss"],
+    "conditions": [
+      "Heart failure",
+      "Early memory loss"
+    ],
     "living": "Lives alone; aide visits on weekdays",
     "contacts": [
-      {"label": "Heart failure nurse line", "value": "555-0142"},
-      {"label": "Priya (daughter)", "value": "555-0187"},
-      {"label": "Dr. Amara Okafor, heart clinic", "value": "555-0110"}
+      {
+        "label": "Heart failure nurse line",
+        "value": "555-0142"
+      },
+      {
+        "label": "Priya (daughter)",
+        "value": "555-0187"
+      },
+      {
+        "label": "Dr. Amara Okafor, heart clinic",
+        "value": "555-0110"
+      }
     ]
   },
   "members": [
-    {"id": "priya", "name": "Priya", "role": "primary", "relation": "Daughter", "telegram_id": 5090735197},
-    {"id": "marcus", "name": "Marcus", "role": "aide", "relation": "Weekday aide", "telegram_id": null},
-    {"id": "dev", "name": "Dev", "role": "family", "relation": "Son, weekends", "telegram_id": null},
-    {"id": "ruth", "name": "Ruth", "role": "older_adult", "relation": "Herself", "telegram_id": null}
+    {
+      "id": "priya",
+      "name": "Priya",
+      "role": "primary",
+      "relation": "Daughter",
+      "telegram_id": null
+    },
+    {
+      "id": "marcus",
+      "name": "Marcus",
+      "role": "aide",
+      "relation": "Weekday aide",
+      "telegram_id": null
+    },
+    {
+      "id": "dev",
+      "name": "Dev",
+      "role": "family",
+      "relation": "Son, weekends",
+      "telegram_id": null
+    },
+    {
+      "id": "ruth",
+      "name": "Ruth",
+      "role": "older_adult",
+      "relation": "Herself",
+      "telegram_id": null
+    }
   ],
   "facts": [
     {
-      "id": "weight_rule", "category": "warning_signs", "tier": "warning", "audience": "everyone",
-      "text": "If Ruth's weight goes up more than 3 lb overnight or 5 lb in a week, call the heart failure nurse line (555-0142).",
-      "question": "Ruth's weight is up 4 lb since yesterday. What do you do?",
+      "id": "weight_rule",
+      "category": "warning_signs",
+      "tier": "warning",
+      "audience": "everyone",
+      "text": "If Ruth's ankles swell more, or her weight goes up more than 3 lb overnight or 5 lb in a week, call the heart failure nurse line (555-0142).",
+      "question": "Ruth's ankles look more swollen and her weight is up 4 lb since yesterday. What do you do?",
       "answer": "Call the heart failure nurse line (555-0142).",
-      "source": "Discharge instructions, 14 Aug 2026", "created_by": "priya", "explainer_template": "weigh_in"
+      "source": "Discharge instructions, 14 Aug 2026",
+      "created_by": "priya",
+      "explainer_template": "weigh_in"
     },
     {
-      "id": "sulfa_allergy", "category": "allergies", "tier": "warning", "audience": "everyone",
+      "id": "sulfa_allergy",
+      "category": "allergies",
+      "tier": "warning",
+      "audience": "everyone",
       "text": "Ruth is allergic to sulfa drugs (rash and swelling). Tell every new doctor and pharmacist.",
       "question": "Which group of drugs is Ruth allergic to?",
       "answer": "Sulfa drugs.",
-      "source": "Priya's notes", "created_by": "priya"
+      "source": "Priya's notes",
+      "created_by": "priya"
     },
     {
-      "id": "walker_brakes", "category": "mobility", "tier": "warning", "audience": "everyone",
+      "id": "walker_brakes",
+      "category": "mobility",
+      "tier": "warning",
+      "audience": "everyone",
       "text": "Lock both walker brakes before Ruth stands up or sits down.",
       "question": "What must happen before Ruth stands up from a chair?",
       "answer": "Lock both walker brakes.",
-      "source": "Physical therapy plan, 20 Aug 2026", "created_by": "priya", "explainer_template": "stand_safely"
+      "source": "Physical therapy plan, 20 Aug 2026",
+      "created_by": "priya",
+      "explainer_template": "stand_safely"
     },
     {
-      "id": "uti_confusion", "category": "warning_signs", "tier": "warning", "audience": "caregivers",
+      "id": "uti_confusion",
+      "category": "warning_signs",
+      "tier": "warning",
+      "audience": "caregivers",
       "text": "New or sudden confusion can mean a urinary infection. Call Priya the same day.",
       "question": "Ruth is suddenly confused this afternoon. What might it mean, and what do you do?",
       "answer": "It can mean a urinary infection. Call Priya the same day.",
-      "source": "Priya's notes", "created_by": "priya"
+      "source": "Priya's notes",
+      "created_by": "priya"
     },
     {
-      "id": "call_911", "category": "warning_signs", "tier": "warning", "audience": "everyone",
+      "id": "call_911",
+      "category": "warning_signs",
+      "tier": "warning",
+      "audience": "everyone",
       "text": "Chest pain, fainting, or severe trouble breathing at rest: call 911.",
       "question": "Ruth has severe trouble breathing while sitting still. What do you do?",
       "answer": "Call 911.",
-      "source": "Discharge instructions, 14 Aug 2026", "created_by": "priya"
+      "source": "Discharge instructions, 14 Aug 2026",
+      "created_by": "priya"
     },
     {
-      "id": "water_pill", "category": "medications", "tier": "routine", "audience": "everyone",
+      "id": "water_pill",
+      "category": "medications",
+      "tier": "routine",
+      "audience": "everyone",
       "text": "Furosemide (water pill) 20 mg at 8 am with breakfast. Never give it in the evening.",
       "question": "What dose of the water pill does Ruth take, and when?",
       "answer": "Furosemide 20 mg at 8 am with breakfast, never in the evening.",
-      "source": "Discharge instructions, 14 Aug 2026", "created_by": "priya"
+      "source": "Discharge instructions, 14 Aug 2026",
+      "created_by": "priya"
     },
     {
-      "id": "weigh_daily", "category": "routines", "tier": "routine", "audience": "everyone",
+      "id": "weigh_daily",
+      "category": "routines",
+      "tier": "routine",
+      "audience": "everyone",
       "text": "Weigh Ruth every morning after the toilet and before breakfast. Write it on the sheet on the fridge.",
       "question": "When should Ruth be weighed, and where is it written down?",
       "answer": "Every morning after the toilet, before breakfast. On the fridge sheet.",
-      "source": "Discharge instructions, 14 Aug 2026", "created_by": "priya", "explainer_template": "weigh_in"
+      "source": "Discharge instructions, 14 Aug 2026",
+      "created_by": "priya",
+      "explainer_template": "weigh_in"
     },
     {
-      "id": "low_salt", "category": "diet", "tier": "routine", "audience": "everyone",
+      "id": "low_salt",
+      "category": "diet",
+      "tier": "routine",
+      "audience": "everyone",
       "text": "Keep salt under 2,000 mg a day. No canned soup or deli meat.",
       "question": "Which two foods should Ruth avoid because of salt?",
       "answer": "Canned soup and deli meat.",
-      "source": "Discharge instructions, 14 Aug 2026", "created_by": "priya"
+      "source": "Discharge instructions, 14 Aug 2026",
+      "created_by": "priya"
     },
     {
-      "id": "fluid_limit", "category": "diet", "tier": "routine", "audience": "everyone",
+      "id": "fluid_limit",
+      "category": "diet",
+      "tier": "routine",
+      "audience": "everyone",
       "text": "Ruth can have up to 1.5 litres of fluid a day (about 6 cups), including soup and tea.",
       "question": "How much fluid can Ruth have in a day?",
       "answer": "Up to 1.5 litres, about 6 cups, including soup and tea.",
-      "source": "Discharge instructions, 14 Aug 2026", "created_by": "priya"
+      "source": "Discharge instructions, 14 Aug 2026",
+      "created_by": "priya"
     },
     {
-      "id": "evening_meds", "category": "medications", "tier": "routine", "audience": "caregivers",
+      "id": "evening_meds",
+      "category": "medications",
+      "tier": "routine",
+      "audience": "caregivers",
       "text": "Ruth takes her evening pills best with chocolate pudding after the 7 pm news, not before.",
       "question": "Ruth refuses her evening pills. What usually works?",
       "answer": "Offer them with chocolate pudding after the 7 pm news.",
-      "source": "Priya's voice note", "created_by": "priya"
+      "source": "Priya's voice note",
+      "created_by": "priya"
     },
     {
-      "id": "first_call", "category": "contacts", "tier": "routine", "audience": "caregivers",
+      "id": "first_call",
+      "category": "contacts",
+      "tier": "routine",
+      "audience": "caregivers",
       "text": "Priya is the first call for anything non-urgent (555-0187). Dev covers weekends.",
       "question": "Who do you call first about something non-urgent?",
       "answer": "Priya, 555-0187. Dev on weekends.",
-      "source": "Priya's notes", "created_by": "priya"
+      "source": "Priya's notes",
+      "created_by": "priya"
     },
     {
-      "id": "spare_key", "category": "routines", "tier": "routine", "audience": "caregivers",
+      "id": "spare_key",
+      "category": "routines",
+      "tier": "routine",
+      "audience": "caregivers",
       "text": "The spare house key is in the lockbox by the back door. Ask Priya for the code.",
       "question": "Where is the spare house key?",
       "answer": "In the lockbox by the back door. Priya has the code.",
-      "source": "Priya's notes", "created_by": "priya"
+      "source": "Priya's notes",
+      "created_by": "priya"
     },
     {
-      "id": "sundowning", "category": "behaviour", "tier": "nice", "audience": "caregivers",
+      "id": "sundowning",
+      "category": "behaviour",
+      "tier": "nice",
+      "audience": "caregivers",
       "text": "Ruth gets anxious after sunset. Close the curtains and play her Nat King Cole playlist.",
       "question": "Ruth gets anxious in the evening. What helps?",
       "answer": "Close the curtains and play her Nat King Cole playlist.",
-      "source": "Priya's voice note", "created_by": "priya"
+      "source": "Priya's voice note",
+      "created_by": "priya"
     },
     {
-      "id": "hearing", "category": "behaviour", "tier": "nice", "audience": "caregivers",
+      "id": "hearing",
+      "category": "behaviour",
+      "tier": "nice",
+      "audience": "caregivers",
       "text": "Ruth hears better on her left side. Sit on her left and face her when you talk.",
       "question": "Which side should you sit on when talking with Ruth?",
       "answer": "Her left side, facing her.",
-      "source": "Priya's notes", "created_by": "priya"
+      "source": "Priya's notes",
+      "created_by": "priya"
     },
     {
-      "id": "tea", "category": "routines", "tier": "nice", "audience": "caregivers",
+      "id": "tea",
+      "category": "routines",
+      "tier": "nice",
+      "audience": "caregivers",
       "text": "Ruth likes milky tea with no sugar at 3 pm. It counts toward her fluid limit.",
       "question": "How does Ruth like her afternoon tea?",
       "answer": "Milky, no sugar, at 3 pm. It counts toward her fluids.",
-      "source": "Priya's notes", "created_by": "priya"
+      "source": "Priya's notes",
+      "created_by": "priya"
     }
   ],
   "reviews": {
     "_note": "Backdated reviews: [days_ago, rating]. Ratings are again, hard, good, easy.",
-    "priya": {"*": [[30, "good"], [12, "good"], [2, "good"]]},
+    "priya": {
+      "*": [
+        [
+          30,
+          "good"
+        ],
+        [
+          12,
+          "good"
+        ],
+        [
+          2,
+          "good"
+        ]
+      ]
+    },
     "dev": {
-      "weight_rule": [[34, "good"], [24, "hard"]],
-      "sulfa_allergy": [[20, "good"], [6, "good"]],
-      "walker_brakes": [[18, "good"], [5, "good"]],
-      "uti_confusion": [[21, "good"], [7, "good"]],
-      "call_911": [[15, "good"], [4, "good"]],
-      "*": [[28, "good"]]
+      "weight_rule": [
+        [
+          34,
+          "good"
+        ],
+        [
+          24,
+          "hard"
+        ]
+      ],
+      "sulfa_allergy": [
+        [
+          20,
+          "good"
+        ],
+        [
+          6,
+          "good"
+        ]
+      ],
+      "walker_brakes": [
+        [
+          18,
+          "good"
+        ],
+        [
+          5,
+          "good"
+        ]
+      ],
+      "uti_confusion": [
+        [
+          21,
+          "good"
+        ],
+        [
+          7,
+          "good"
+        ]
+      ],
+      "call_911": [
+        [
+          15,
+          "good"
+        ],
+        [
+          4,
+          "good"
+        ]
+      ],
+      "*": [
+        [
+          28,
+          "good"
+        ]
+      ]
     },
     "marcus": {
-      "weight_rule": [[14, "good"], [9, "again"]],
-      "sulfa_allergy": [[10, "good"], [3, "good"]],
-      "walker_brakes": [[16, "good"]],
-      "call_911": [[8, "good"], [2, "good"]],
-      "water_pill": [[11, "good"], [3, "good"]],
-      "low_salt": [[12, "hard"]],
-      "evening_meds": [[13, "good"], [4, "good"]],
-      "hearing": [[6, "good"]]
+      "weight_rule": [
+        [
+          14,
+          "good"
+        ],
+        [
+          9,
+          "again"
+        ]
+      ],
+      "sulfa_allergy": [
+        [
+          10,
+          "good"
+        ],
+        [
+          3,
+          "good"
+        ]
+      ],
+      "walker_brakes": [
+        [
+          16,
+          "good"
+        ]
+      ],
+      "call_911": [
+        [
+          8,
+          "good"
+        ],
+        [
+          2,
+          "good"
+        ]
+      ],
+      "water_pill": [
+        [
+          11,
+          "good"
+        ],
+        [
+          3,
+          "good"
+        ]
+      ],
+      "low_salt": [
+        [
+          12,
+          "hard"
+        ]
+      ],
+      "evening_meds": [
+        [
+          13,
+          "good"
+        ],
+        [
+          4,
+          "good"
+        ]
+      ],
+      "hearing": [
+        [
+          6,
+          "good"
+        ]
+      ]
     }
   },
   "events": [
-    {"days_ago": 3, "type": "older_adult_signal", "actor": "ruth", "fact_id": "weight_rule",
-     "details": {"summary": "In two check-ins this week, Ruth wasn't sure what to do about weight gain."}}
+    {
+      "days_ago": 3,
+      "type": "older_adult_signal",
+      "actor": "ruth",
+      "fact_id": "weight_rule",
+      "details": {
+        "summary": "In two check-ins this week, Ruth wasn't sure what to do about weight gain."
+      }
+    }
   ],
   "explainers": {
     "weigh_in": {
       "template": "weigh_in",
       "title": "Your morning weigh-in",
       "steps": [
-        {"text": "Each morning, after the toilet, step on the scale.", "focus": "scale", "action": "tap"},
-        {"text": "Look at the number. Compare it with yesterday's on the fridge sheet.", "focus": "display", "action": "watch"},
-        {"text": "Up more than 3 pounds? Call your heart failure nurse: 555-0142.", "focus": "phone", "action": "tap"}
+        {
+          "text": "Each morning, after the toilet, step on the scale.",
+          "focus": "scale",
+          "action": "tap"
+        },
+        {
+          "text": "Look at the number. Compare it with yesterday's on the fridge sheet.",
+          "focus": "display",
+          "action": "watch"
+        },
+        {
+          "text": "Up more than 3 pounds? Call your heart failure nurse: 555-0142.",
+          "focus": "phone",
+          "action": "tap"
+        }
       ]
     },
     "stand_safely": {
       "template": "stand_safely",
       "title": "Standing up safely",
       "steps": [
-        {"text": "Bring your walker close, in front of your chair.", "focus": "walker", "action": "watch"},
-        {"text": "Press down both brakes until they click.", "focus": "brakes", "action": "tap"},
-        {"text": "Now push up from the chair arms and stand slowly.", "focus": "chair", "action": "tap"}
+        {
+          "text": "Bring your walker close, in front of your chair.",
+          "focus": "walker",
+          "action": "watch"
+        },
+        {
+          "text": "Press down both brakes until they click.",
+          "focus": "brakes",
+          "action": "tap"
+        },
+        {
+          "text": "Now push up from the chair arms and stand slowly.",
+          "focus": "chair",
+          "action": "tap"
+        }
       ]
     }
   }

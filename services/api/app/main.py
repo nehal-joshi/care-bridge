@@ -658,6 +658,12 @@ def internal_context(body: ContextIn):
     facts = [f for f in rows(conn.execute("SELECT * FROM facts WHERE status = 'approved'")) if f["audience"] in audience]
     options = [{"id": f["id"], "label": f["text"][:140]} for f in facts]
     decision = laya.read_message(body.message, options) if body.message.strip() else None
+    if decision is None and body.message.strip():
+        try:
+            conditions = json.loads(conn.execute("SELECT conditions FROM persons LIMIT 1").fetchone()["conditions"])
+            decision = {"fact_id": llm.pick_fact(body.message, options, conditions), "intent": None, "unsure": None, "by": "gemma"}
+        except Exception as exc:
+            log.warning("pick_fact failed: %s", exc)
     if decision is None:
         decision = {"fact_id": laya.keyword_pick(body.message, options), "intent": None, "unsure": None,
                     "by": "keywords"}

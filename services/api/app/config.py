@@ -52,6 +52,7 @@ class Settings:
     model: str = _get("CAREBRIDGE_MODEL", "gemma4:e4b-mlx")
     laya_url: str = _get("LAYA_URL", "http://127.0.0.1:8888").rstrip("/")
     laya_api_key: str = _get("LAYA_API_KEY")
+    telegram_ids: str = _get("CAREBRIDGE_TELEGRAM_IDS")
     db_path: Path = Path(_get("CAREBRIDGE_DB", str(DATA_DIR / "care-bridge.sqlite3")))
 
 

@@ -5,15 +5,30 @@ import sqlite3
 from datetime import timedelta
 
 from . import memory
-from .config import DEMO_DIR
+from .config import DEMO_DIR, settings
 from .db import iso, log_event, now
 
 SEED_FILE = DEMO_DIR / "seed.json"
 TABLES = ("persons", "members", "invites", "facts", "cards", "reviews", "events", "explainers", "documents")
 
 
+def _telegram_ids() -> dict[str, int]:
+    """CAREBRIDGE_TELEGRAM_IDS=priya:123,marcus:456 in local.env maps seeded people to real Telegram accounts."""
+    out = {}
+    for pair in settings.telegram_ids.split(","):
+        if ":" in pair:
+            member, tg = pair.split(":", 1)
+            if tg.strip().isdigit():
+                out[member.strip()] = int(tg.strip())
+    return out
+
+
 def load_seed() -> dict:
-    return json.loads(SEED_FILE.read_text())
+    seed = json.loads(SEED_FILE.read_text())
+    ids = _telegram_ids()
+    for m in seed["members"]:
+        m["telegram_id"] = ids.get(m["id"], m.get("telegram_id"))
+    return seed
 
 
 def reset_and_seed(conn: sqlite3.Connection) -> dict:

@@ -54,9 +54,11 @@ The token for @neo_fsrs_coach_bot was printed in a Claude session. In BotFather,
 2. **Bot Settings → Menu Button**, URL `https://<your-domain>/`, title `Care-Bridge`.
 3. Optional: `/setname` Care-Bridge and `/setuserpic` with `assets/geeko-pfp.png`.
 
-### 4. Connect people with claim links
+### 4. Connect people
 
-Open the Mini App as Priya (your account is already Priya) and go to **Ruth → Connect people**. Copy Marcus's, Dev's and Ruth's links and send each to the teammate playing that person. Opening the link in Telegram connects their account to that seeded person, with their review history. The list then shows each person's Telegram ID.
+`CAREBRIDGE_TELEGRAM_IDS` in `local.env` maps each seeded person to a teammate's Telegram account, and the same IDs go in `TELEGRAM_ALLOWED_USERS` in `~/.hermes/.env`. Both are already set for the team: Abhishree is Priya, Nehal is Marcus, Kush is Dev and Amey is Ruth. Keep the IDs out of the repo.
+
+To add someone else, use **Ruth → Connect people** in the Mini App as Priya, or add them to both settings and run **Reset demo data**.
 
 ### 5. Hermes for Ruth's chat (E7 and E8)
 
