@@ -2,7 +2,7 @@ import { Send, ArrowUpRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export const TELEGRAM_URL = process.env.NEXT_PUBLIC_TELEGRAM_URL || "https://t.me/CareBridgeBot";
+export const TELEGRAM_URL = process.env.NEXT_PUBLIC_TELEGRAM_URL || "https://t.me/geeko_fsrs_bot";
 
 export function TelegramLink({
   label = "Open in Telegram",
