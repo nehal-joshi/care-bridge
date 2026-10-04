@@ -10,7 +10,11 @@ Care-Bridge
 
 The right person remembers the right thing when it matters: a shared, spaced-repetition memory for everyone caring for an older adult.
 
-Shorter: Spaced-repetition memory for an older adult's whole care circle.
+Shorter: A shared memory for everyone caring for an older adult: the right person remembers the right thing when it matters.
+
+## Short description
+
+Care-Bridge is a shared care memory and coordination layer for an older adult's whole care circle, on Telegram. Families and aides keep one approved, continuously updated care plan: medicines, warning signs, routines and contacts. Every change reaches everyone in real time, with a history of who changed what. Spaced-repetition briefs teach each caregiver the facts they're about to forget, and a coverage view shows who would remember each warning sign. A live daily checklist logs medicines, meals and health checks, and a photo of a lab report becomes a health record. The older adult asks questions in their own words and gets answers only from their approved care plan, plus simple 3D guides. When they say "I feel unwell" or "call my daughter", the whole circle is alerted. Caregivers can ask what a condition means for daily care or what to do in an emergency. Gemma 4 and Laya run locally on one computer, so health information stays at home.
 
 ## The problem
 
