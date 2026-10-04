@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #101014;
+  --ink-2: #17171c;
+  --cream: #e1e0cc;
+  --amber: #f2b45a;
+  --green: #8fcf8a;
+  --red: #ef6a5b;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink-2);
+  --color-cream: var(--cream);
+  --color-amber: var(--amber);
+  --color-ok: var(--green);
+  --color-bad: var(--red);
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-hanken);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--ink);
+  color: var(--cream);
+  font-family: var(--font-hanken), system-ui, sans-serif;
+  font-size: 18px;
+}
+.font-display { font-variation-settings: "SOFT" 100, "WONK" 1; }
+
+.noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* scroll reveal */
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity .9s cubic-bezier(.16,1,.3,1), transform .9s cubic-bezier(.16,1,.3,1); transition-delay: var(--d, 0s); }
+.reveal.in { opacity: 1; transform: none; }
+.pull > span { display: inline-block; opacity: 0; transform: translateY(.45em); transition: opacity .7s cubic-bezier(.16,1,.3,1), transform .7s cubic-bezier(.16,1,.3,1); transition-delay: var(--d, 0s); }
+.pull.in > span { opacity: 1; transform: none; }
+
+/* chat bubbles pop in once visible */
+.bubble { opacity: 0; transform: translateY(10px) scale(.97); }
+.chat.in .bubble { animation: pop .6s cubic-bezier(.16,1,.3,1) forwards; animation-delay: var(--d); }
+@keyframes pop { to { opacity: 1; transform: none; } }
+
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(239,106,91,.55);} 100% { box-shadow: 0 0 0 14px rgba(239,106,91,0);} }
+.pulse-red { animation: pulse-ring 2s infinite; }
+
+@keyframes drift { from { transform: translateX(0);} to { transform: translateX(-50%);} }
+.marquee { animation: drift 38s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .pull > span, .bubble { opacity: 1; transform: none; transition: none; animation: none !important; }
+  .marquee, .pulse-red { animation: none; }
+  html { scroll-behavior: auto; }
+}
