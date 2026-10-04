@@ -707,7 +707,11 @@ def create_custom_guide(topic: str, member: dict, fact: dict | None = None, for_
     if len(topic) < 3:
         return {"ok": False, "error": "Say what the guide should show"}
     people = [m["name"] for m in caregivers()]
-    raw = llm.custom_guide(topic, for_ruth, fact["text"] if fact else None, people)
+    try:
+        raw = llm.custom_guide(topic, for_ruth, fact["text"] if fact else None, people)
+    except Exception as exc:
+        log.warning("custom guide planning failed: %s", exc)
+        return {"ok": False, "error": "Couldn't plan that guide this time. Try again or describe it differently."}
     if not raw.get("suitable"):
         return {"ok": False, "error": raw.get("reason") or "That isn't something a guide can show"}
     spec = validate_kit_spec(raw)
@@ -1531,9 +1535,19 @@ def internal_explainer(body: ExplainerIn):
 
 # ---------- static apps ----------
 
+class AppFiles(StaticFiles):
+    """Static files where HTML is always re-checked, so phones pick up a new build. Hashed assets stay cacheable."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def _mount(path: str, directory: Path) -> None:
     if directory.exists():
-        app.mount(path, StaticFiles(directory=directory, html=True), name=path.strip("/") or "root")
+        app.mount(path, AppFiles(directory=directory, html=True), name=path.strip("/") or "root")
 
 
 _mount("/explain", ROOT / "apps" / "explainer" / "dist")

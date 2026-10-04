@@ -78,6 +78,12 @@ It takes up to a minute; come back to it in step 5.
 - All three caregiver phones buzz: "Ruth asked for help…". **Abhishree** shows Changes: "Ruth in chat · Asked for someone · Feeling unwell."
 - **Narrator:** "Ruth asked, so that's her consent. If she hadn't asked, the bot would have asked her first. And Ruth never sees caregiver-only notes, like the pudding trick for her evening pills."
 
+### 8b. A guide on request (optional, 30 s)
+
+- **Amey** (as Ruth): "Can you show me how to call Priya on my phone?"
+- The bot says a guide is coming. Within a minute, a **Show me** button arrives. **Amey** taps Phone, Priya, then the green Call button on the 3D phone.
+- Send this message during step 6 or 7 so the guide is ready in time.
+
 ### 9. Dev catches up (20 s)
 
 - **Kush** (as Dev) asks the bot: "I'm covering this weekend. Anything I should know about Mom?"

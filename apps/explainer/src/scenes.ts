@@ -2,7 +2,7 @@
 // Everything is built from simple shapes in code, so scenes load fast on older phones.
 import * as THREE from 'three'
 
-export type SceneObject = { id: string; label: string; group: THREE.Object3D; anchor: THREE.Vector3 }
+export type SceneObject = { id: string; label: string; group: THREE.Object3D; anchor: THREE.Vector3; button?: boolean }
 export type BuiltScene = {
   scene: THREE.Scene
   camera: THREE.PerspectiveCamera
@@ -414,7 +414,7 @@ export function kit(spec: KitSpec): BuiltScene {
       const anchor = new THREE.Vector3()
       marker.getWorldPosition(anchor)
       const label = spec.phone_buttons.find(b => b.id === r.id)?.label || r.id
-      objects.set(r.id, { id: r.id, label, group: marker, anchor })
+      objects.set(r.id, { id: r.id, label, group: marker, anchor, button: true })
     }
     redraw = (focus: string) => {
       const next = screenTexture(spec.phone_buttons, focus)
@@ -426,8 +426,8 @@ export function kit(spec: KitSpec): BuiltScene {
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
   if (hero) {
-    camera.position.set(0, 2.4, 5.2)
-    camera.lookAt(0, 1.8, 0)
+    camera.position.set(0, 2.2, 3.9)
+    camera.lookAt(0, 1.85, 0)
   } else {
     const width = Math.max(3, others.length * spacing)
     camera.position.set(0, 3.6 + width * 0.25, 5.5 + width * 0.6)

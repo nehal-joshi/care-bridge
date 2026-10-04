@@ -124,6 +124,8 @@ Ruth gets a guide in three ways, all sent by the backend rather than by Gemma ch
 
 When Ruth finishes a guide, it shows in Changes.
 
+Guides for any everyday task can be made on request. Ask the bot, for example "give me a visualization for using a phone to call Priya", or type the task under **Ruth's guides → Create a guide**. Gemma plans the guide from a fixed kit of 16 objects (a phone with large buttons, chair, table, bed, cup, kettle, pill box, door, keys, glasses, scale, walker, TV remote, clock, lamp, plate). The API checks the plan, and the player draws it; no generated code runs. A plan takes 10 to 50 seconds, so the "Show me" button arrives in the chat afterwards. Requests for medical decisions are refused, and medicine guides never state amounts.
+
 ## Health records from photos
 
 When a caregiver sends the bot a photo, the plugin's `pre_gateway_dispatch` hook hands it to the API in the background (reading takes Gemma 10–40 seconds, longer than Hermes lets a reply hook run). If Gemma decides it's a medical document, the API saves it as a health record and the bot sends a confirmation in the chat listing the out-of-range results. Records appear on the Ruth tab and in Changes, and the chat assistant can answer questions about them for every caregiver. Photos can also be uploaded from Handbook → Add.

@@ -32,12 +32,12 @@ GUIDE = """Fields:
 
 
 def chat_json(system: str, user: str, schema: dict, timeout: float = 180.0, images: list[str] | None = None,
-              temperature: float = 0) -> dict:
+              temperature: float = 0, max_tokens: int = 3000) -> dict:
     body = {
         "model": settings.model,
         "stream": False,
         "format": schema,
-        "options": {"temperature": temperature, "num_predict": 3000},  # stops a run-away generation instead of hanging
+        "options": {"temperature": temperature, "num_predict": max_tokens},  # stops a run-away generation instead of hanging
         "keep_alive": -1,
         "think": False,
         "messages": [{"role": "system", "content": system},
@@ -249,15 +249,16 @@ BUTTON_COLORS = ["green", "red", "blue", "grey"]
 def custom_guide(request: str, for_ruth: bool, related_fact: str | None, people: list[str]) -> dict:
     """Plan a short 3D guide from a fixed kit of objects. The renderer draws it; nothing here is code."""
     obj = {"type": "object", "properties": {"id": {"type": "string"}, "kind": {"type": "string", "enum": KIT_KINDS},
-                                            "label": {"type": "string"}}, "required": ["id", "kind", "label"]}
+                                            "label": {"type": "string", "maxLength": 24}}, "required": ["id", "kind", "label"]}
     button = {"type": "object", "properties": {"id": {"type": "string"}, "label": {"type": "string"},
                                                "color": {"type": "string", "enum": BUTTON_COLORS}},
               "required": ["id", "label", "color"]}
-    step = {"type": "object", "properties": {"text": {"type": "string"}, "focus": {"type": "string"},
+    step = {"type": "object", "properties": {"text": {"type": "string", "maxLength": 100}, "focus": {"type": "string", "maxLength": 24},
                                              "action": {"type": "string", "enum": ["tap", "watch"]}},
             "required": ["text", "focus", "action"]}
     schema = {"type": "object",
-              "properties": {"suitable": {"type": "boolean"}, "reason": {"type": "string"}, "title": {"type": "string"},
+              "properties": {"suitable": {"type": "boolean"}, "reason": {"type": "string", "maxLength": 160},
+                             "title": {"type": "string", "maxLength": 40},
                              "objects": {"type": "array", "items": obj, "minItems": 1, "maxItems": 5},
                              "phone_buttons": {"type": "array", "items": button, "maxItems": 6},
                              "steps": {"type": "array", "items": step, "minItems": 2, "maxItems": 5}},
@@ -275,11 +276,16 @@ def custom_guide(request: str, for_ruth: bool, related_fact: str | None, people:
         "Example for calling someone: objects [phone], phone_buttons [{id: phone_app, label: Phone, color: blue}, "
         "{id: priya, label: Priya, color: grey}, {id: call, label: Call, color: green}], steps: tap Phone, tap Priya, "
         "tap the green Call button, wait for her to answer. "
-        "Never add medical advice. If a care fact is given, follow it exactly and keep its numbers."
+        "Never add medical advice. For medicines, never say how many pills, which pills or a dose; point to today's "
+        "compartment and say to take what Priya or the care plan set out. "
+        "If a care fact is given, follow it exactly and keep its numbers."
         + (f" People she may call: {', '.join(people)}." if people else "")
     )
     user = f"Request: {request}" + (f"\nRelated care fact: {related_fact}" if related_fact else "")
-    try:
-        return chat_json(system, user, schema, timeout=75.0)
-    except json.JSONDecodeError:  # the model looped and hit the length cap; a little randomness usually breaks the loop
-        return chat_json(system, user, schema, timeout=75.0, temperature=0.4)
+    # A real plan is a few hundred tokens. A low cap makes a looping run fail fast; randomness usually breaks the loop.
+    for temperature in (0, 0.4, 0.7):
+        try:
+            return chat_json(system, user, schema, timeout=60.0, temperature=temperature, max_tokens=900)
+        except json.JSONDecodeError:
+            continue
+    raise ValueError("Gemma couldn't plan this guide")

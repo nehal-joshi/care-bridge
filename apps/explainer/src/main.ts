@@ -129,11 +129,16 @@ function runScene(spec: Spec, built: BuiltScene) {
     built.onFocus?.(focus)
     countEl.textContent = `Step ${index + 1} of ${spec.steps.length}`
     stepEl.textContent = step.text
-    const name = objects.get(focus)?.label.toLowerCase() || 'glowing object'
-    hintEl.textContent = step.action === 'tap' ? `Tap the glowing ${name}, or press Next.` : 'Watch the glowing part, then press Next.'
+    const target = objects.get(focus)
+    const name = target?.label.toLowerCase() || 'glowing object'
+    if (target?.button) {
+      hintEl.textContent = step.action === 'tap' ? `Tap the highlighted ${target.label} button, or press Next.` : 'Look at the highlighted button, then press Next.'
+    } else {
+      hintEl.textContent = step.action === 'tap' ? `Tap the glowing ${name}, or press Next.` : 'Watch the glowing part, then press Next.'
+    }
     nextBtn.textContent = index === spec.steps.length - 1 ? 'Done' : 'Next'
-    label.textContent = objects.get(focus)?.label || ''
-    label.style.display = 'block'
+    label.textContent = target?.label || ''
+    label.style.display = target?.button ? 'none' : 'block'  // a button already shows its own text
   }
   const advance = () => { tg?.HapticFeedback?.impactOccurred('light'); index += 1; show() }
   nextBtn.onclick = advance
