@@ -1,0 +1,6 @@
+name: care-bridge
+version: "0.1.0"
+description: Care-Bridge companion for Ruth and handbook answers for her caregivers, backed by the Care-Bridge API
+provides_tools:
+  - carebridge_notify_circle
+  - carebridge_show_explainer
