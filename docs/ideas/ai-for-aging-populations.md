@@ -125,10 +125,10 @@ This doc sets out four problems and four product ideas. Ideas 1–3 each solve o
 - **FSRS fit.** Its default settings come from mostly young flashcard users and need testing in this group.
 - **Regulation.** Claiming to detect decline requires clinical studies and possibly FDA review as medical software. Start with engagement claims and collect data with a research partner.
 
-## Idea 4: Lernok Circle, one shared memory for a care circle
+## Idea 4: Care-Bridge, one shared memory for a care circle
 
 **Solves:** P1–P4
-**Working name:** Lernok Circle
+**Working name:** Care-Bridge
 **One line:** one set of facts about one older adult, taught to everyone who needs them. The older adult learns by phone and caregivers by chat. FSRS tracks each person's recall, so the circle takes over critical facts as the older adult's memory declines.
 
 ### The core idea: one fact, many learners
@@ -169,7 +169,7 @@ Each of the four has their own FSRS card for this fact. Ruth practises it on her
 
 ### Changes from the prototype
 
-| Prototype | Lernok Circle |
+| Prototype | Care-Bridge |
 |---|---|
 | One learner | Many learners per older adult, each with a role |
 | Course quizzes and cards in separate stores | One fact store per older adult; each fact has a source, tier and audience |
@@ -214,7 +214,7 @@ The prototype's rules carry over unchanged:
 
 ## Comparison
 
-| | 1. Shift-ready | 2. Teach-back | 3. Memory companion | 4. Lernok Circle |
+| | 1. Shift-ready | 2. Teach-back | 3. Memory companion | 4. Care-Bridge |
 |---|---|---|---|---|
 | Problem | P1 | P2 | P3 | P1–P4 |
 | Main learner | Caregivers | Older adult | Older adult | Both |
