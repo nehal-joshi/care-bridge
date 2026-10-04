@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import HealthRecords from './HealthRecords'
 import { api, haptic, post, type Me } from '../api'
 
 type ClaimLink = { id: string; name: string; role: string; connected: boolean; telegram_id: number | null; link: string }
@@ -38,6 +39,8 @@ export default function Circle({ me, onReset }: { me: Me; onReset: () => void })
           {me.person.contacts.map(c => <li key={c.label}><span>{c.label}</span> <a href={`tel:${c.value}`}>{c.value}</a></li>)}
         </ul>
       </section>
+
+      <HealthRecords />
 
       <section>
         <h3>Care circle</h3>

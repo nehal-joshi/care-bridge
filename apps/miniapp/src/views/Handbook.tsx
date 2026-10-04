@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CATEGORY_LABELS, TIER_LABELS, api, haptic, post, type Fact, type Me } from '../api'
 import DraftCard from './DraftCard'
 
-type UploadResult = { drafts: Fact[]; already_known: string[]; cached: boolean }
+type UploadResult = { drafts: Fact[]; already_known: string[]; cached?: boolean; record?: { record_type: string; record_date: string; flagged: unknown[] } | null; record_status?: string }
 
 export default function Handbook({ me, onChanged }: { me: Me; onChanged: () => void }) {
   const [facts, setFacts] = useState<Fact[] | null>(null)
@@ -107,6 +107,12 @@ function AddPanel({ isPrimary, onDone }: { isPrimary: boolean; onDone: () => voi
     form.append('file', file)
     try {
       const r = await api<UploadResult>('/api/documents', { method: 'POST', body: form })
+      if (r.record_status) {
+        setMessage(r.record
+          ? `${r.record_status === 'already_saved' ? 'Already in' : 'Saved to'} Ruth's health records: ${r.record.record_type}, ${r.record.record_date}, ${r.record.flagged.length} out of range. See the Ruth tab.`
+          : "That photo doesn't look like a medical document, so nothing was saved.")
+        haptic('success'); onDone(); return
+      }
       setMessage(`${r.drafts.length} draft ${r.drafts.length === 1 ? 'fact' : 'facts'} to review. ` +
         `${r.already_known.length} ${r.already_known.length === 1 ? 'instruction is' : 'instructions are'} already in the handbook.`)
       haptic('success')
@@ -131,11 +137,11 @@ function AddPanel({ isPrimary, onDone }: { isPrimary: boolean; onDone: () => voi
         <>
           <div className="or">or</div>
           <label className={`upload ${busy === 'pdf' ? 'busy' : ''}`}>
-            <input ref={fileRef} type="file" accept="application/pdf" disabled={!!busy}
+            <input ref={fileRef} type="file" accept="application/pdf,image/*" disabled={!!busy}
               onChange={e => e.target.files?.[0] && upload(e.target.files[0])} />
             {busy === 'pdf'
-              ? <><div className="spinner small" /> Gemma is reading the PDF. This takes about 30 seconds.</>
-              : <>Upload a discharge PDF or care plan</>}
+              ? <><div className="spinner small" /> Gemma is reading it. This takes up to a minute.</>
+              : <>Upload a discharge PDF, care plan, or a photo of a lab report</>}
           </label>
         </>
       )}

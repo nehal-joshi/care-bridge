@@ -31,7 +31,7 @@ GUIDE = """Fields:
 - audience: "everyone" if Ruth herself should also know it; "caregivers" if it is only for the people caring for her."""
 
 
-def chat_json(system: str, user: str, schema: dict, timeout: float = 180.0) -> dict:
+def chat_json(system: str, user: str, schema: dict, timeout: float = 180.0, images: list[str] | None = None) -> dict:
     body = {
         "model": settings.model,
         "stream": False,
@@ -39,7 +39,8 @@ def chat_json(system: str, user: str, schema: dict, timeout: float = 180.0) -> d
         "options": {"temperature": 0},
         "keep_alive": -1,
         "think": False,
-        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        "messages": [{"role": "system", "content": system},
+                     {"role": "user", "content": user, **({"images": images} if images else {})}],
     }
     with httpx.Client(timeout=timeout) as client:
         response = client.post(f"{settings.ollama_url}/api/chat", json=body)
@@ -202,3 +203,30 @@ def analyze_message(role: str, message: str, facts: list[dict], conditions: list
     if result.get("fact_id") not in ids or result.get("fact_id") == "none":
         result["fact_id"] = None
     return result
+
+
+def read_health_record(image_b64: str, caption: str = "") -> dict:
+    """Read a photo of a medical document (lab report, prescription, letter). Values are copied, never interpreted."""
+    finding = {"type": "object",
+               "properties": {"name": {"type": "string"}, "value": {"type": "string"}, "unit": {"type": "string"},
+                              "reference_range": {"type": "string"},
+                              "flag": {"type": "string", "enum": ["low", "high", "normal", "abnormal"]}},
+               "required": ["name", "value", "unit", "reference_range", "flag"]}
+    schema = {"type": "object",
+              "properties": {"is_health_record": {"type": "boolean"}, "record_type": {"type": "string"},
+                             "result_rows_in_document": {"type": "integer"},
+                             "patient_name": {"type": "string"}, "date": {"type": "string"},
+                             "source": {"type": "string"}, "ordered_by": {"type": "string"},
+                             "findings": {"type": "array", "items": finding}, "summary": {"type": "string"}},
+              "required": ["is_health_record", "record_type", "result_rows_in_document", "patient_name", "date",
+                           "source", "ordered_by", "findings", "summary"]}
+    system = ("You read a photo that a caregiver shared about Ruth, an older adult. is_health_record: true only for a "
+              "medical document such as a lab report, prescription, discharge note or doctor's letter. record_type: what "
+              "kind of document it is, e.g. \"Complete blood count (CBC)\". source: the hospital, lab or clinic. "
+              "Copy every value exactly as printed; never guess or interpret. result_rows_in_document: count the result rows "
+              "in the document's tables. findings: one entry for EVERY result row, normal ones included, so its length "
+              "equals result_rows_in_document. flag: "
+              "low or high if the document marks it L or H or it is outside the printed range, otherwise normal. "
+              "summary: one plain sentence naming only what is out of range, with no medical advice.")
+    return chat_json(system, f"Read this document.{' Caregiver note: ' + caption if caption else ''}", schema,
+                     timeout=300.0, images=[image_b64])

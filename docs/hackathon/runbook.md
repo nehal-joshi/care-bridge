@@ -114,6 +114,16 @@ The **Today** tab (the default for everyone) is Ruth's daily checklist: medicine
 
 The seed includes 9 schedule items and two weeks of history. A database created earlier gets them added automatically on start.
 
+## Health records from photos
+
+When a caregiver sends the bot a photo, the plugin's `pre_gateway_dispatch` hook hands it to the API in the background (reading takes Gemma 10–40 seconds, longer than Hermes lets a reply hook run). If Gemma decides it's a medical document, the API saves it as a health record and the bot sends a confirmation in the chat listing the out-of-range results. Records appear on the Ruth tab and in Changes, and the chat assistant can answer questions about them for every caregiver. Photos can also be uploaded from Handbook → Add.
+
+- Values are copied from the document, never interpreted; the bot points people to Ruth's doctor for meaning.
+- Ruth's chat only knows that a record exists, not its numbers.
+- Only caregivers' photos become records, only files Hermes downloaded are read, and the same photo is saved once.
+- Gemma reads every flagged result reliably; on the demo CBC it lists 17 of the 20 rows, so the "results in range" count can be a little low.
+- Test image: `demo/ruth-alvarez-cbc-2026-10-06.png`.
+
 ## What the bot does with chat messages
 
 Before Gemma answers any Telegram message, the API reads it (Laya when confident, otherwise Gemma) and acts on what the system is allowed to act on:

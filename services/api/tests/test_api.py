@@ -153,3 +153,51 @@ def test_reports_pdf_csv_and_signed_link():
     assert csv_text.startswith("date,time,category,item") and "Furosemide" in csv_text
     assert client.get(link["path"].replace("sig=", "sig=0")).status_code == 403
     assert client.post("/api/reports/link", json={"period": "week"}, headers=MARCUS).status_code == 403
+
+
+FAKE_CBC = {"is_health_record": True, "record_type": "Complete blood count (CBC)", "patient_name": "Ruth Alvarez",
+            "date": "06 Oct 2026", "source": "Maplewood Community Hospital", "ordered_by": "Dr. Amara Okafor",
+            "summary": "Hemoglobin is low.",
+            "findings": [{"name": "Hemoglobin", "value": "10.8", "unit": "g/dL", "reference_range": "12.0-15.5", "flag": "low"},
+                         {"name": "Platelet count", "value": "196", "unit": "10^3/uL", "reference_range": "150-400", "flag": "normal"}]}
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+
+
+def test_photo_in_chat_becomes_a_record(monkeypatch, tmp_path):
+    from app import llm, main
+    monkeypatch.setattr(llm, "read_health_record", lambda *a, **k: FAKE_CBC)
+    monkeypatch.setattr(main, "HERMES_IMAGE_CACHE", tmp_path)
+    img = tmp_path / "cbc.png"
+    img.write_bytes(PNG)
+    outside = tmp_path.parent / "secret.png"
+    outside.write_bytes(PNG + b"x")
+    main.conn.execute("UPDATE members SET telegram_id = 1111 WHERE id = 'priya'")
+    main.conn.commit()
+    h = {"X-Internal-Secret": INTERNAL_SECRET}
+    r = client.post("/api/internal/image", json={"sender_id": "1111", "paths": [str(img), str(outside)]}, headers=h).json()
+    assert [x["status"] for x in r["results"]] == ["saved"]  # the file outside Hermes's image cache is ignored
+    again = client.post("/api/internal/image", json={"sender_id": "1111", "paths": [str(img)]}, headers=h).json()
+    assert again["results"][0]["status"] == "already_saved"
+    records = client.get("/api/records", headers=MARCUS).json()
+    assert records[0]["flagged"][0]["name"] == "Hemoglobin"
+    ctx = client.post("/api/internal/context", json={"sender_id": "1111", "message": ""}, headers=h).json()["context"]
+    assert "Hemoglobin 10.8 g/dL (low" in ctx
+    ruth = client.post("/api/internal/context", json={"sender_id": "4242", "message": ""}, headers=h).json()["context"]
+    assert "10.8" not in ruth and "Complete blood count (CBC) from 06 Oct 2026 is in her records" in ruth
+
+
+def test_ruth_photos_are_not_saved_as_records(monkeypatch, tmp_path):
+    from app import main
+    monkeypatch.setattr(main, "HERMES_IMAGE_CACHE", tmp_path)
+    img = tmp_path / "x.png"
+    img.write_bytes(PNG + b"ruth")
+    r = client.post("/api/internal/image", json={"sender_id": "4242", "paths": [str(img)]},
+                    headers={"X-Internal-Secret": INTERNAL_SECRET}).json()
+    assert r["ok"] is False
+
+
+def test_photo_upload_in_mini_app(monkeypatch):
+    from app import llm
+    monkeypatch.setattr(llm, "read_health_record", lambda *a, **k: {**FAKE_CBC, "date": "07 Oct 2026"})
+    r = client.post("/api/documents", files={"file": ("cbc2.png", PNG + b"2", "image/png")}, headers=PRIYA).json()
+    assert r["record_status"] == "saved" and r["record"]["record_date"] == "07 Oct 2026"

@@ -1,4 +1,5 @@
 """Care-Bridge API: care circle, handbook, FSRS briefs, coverage, daily logs, and the internal endpoints Hermes calls."""
+import base64
 import hashlib
 import hmac
 import json
@@ -345,8 +346,15 @@ async def upload_document(file: UploadFile = File(...), member: dict = Depends(c
     """B3: PDF → Gemma → draft facts (new or updates). Results are cached by file hash for the demo."""
     require_primary(member)
     data = await file.read()
+    if _image_mime(data):
+        try:
+            result = save_record(member, data, "upload")
+        except Exception as exc:
+            log.exception("reading health record failed")
+            raise HTTPException(502, f"Gemma couldn't read the image: {type(exc).__name__}")
+        return {"record": result["record"], "record_status": result["status"], "drafts": [], "already_known": []}
     if not data.startswith(b"%PDF"):
-        raise HTTPException(400, "Upload a PDF")
+        raise HTTPException(400, "Upload a PDF or a photo")
     sha = hashlib.sha256(data).hexdigest()
     EXTRACT_CACHE.mkdir(parents=True, exist_ok=True)
     cache = EXTRACT_CACHE / f"{sha}.json"
@@ -870,11 +878,132 @@ def report_send(body: ReportIn, member: dict = Depends(current_member)):
     return {"ok": True, "file_name": name}
 
 
+
+# ---------- health records (photos of lab reports and other medical documents) ----------
+
+HERMES_IMAGE_CACHE = Path.home() / ".hermes" / "image_cache"
+IMAGE_TYPES = {b"\x89PNG": "image/png", b"\xff\xd8\xff": "image/jpeg", b"RIFF": "image/webp"}
+
+
+def _image_mime(data: bytes) -> str | None:
+    return next((mime for magic, mime in IMAGE_TYPES.items() if data.startswith(magic)), None)
+
+
+def record_out(r: dict, names: dict[str, str] | None = None) -> dict:
+    names = names or member_names()
+    findings = json.loads(r["findings"] or "[]")
+    return {**{k: r[k] for k in ("id", "record_type", "title", "record_date", "source", "ordered_by", "summary",
+                                 "origin", "created_at")},
+            "shared_by": names.get(r["shared_by"], r["shared_by"]), "findings": findings,
+            "flagged": [f for f in findings if f.get("flag") in ("low", "high", "abnormal")]}
+
+
+def save_record(member: dict, data: bytes, origin: str, caption: str = "") -> dict:
+    """Read a medical document photo with Gemma and save it to Ruth's records. Same photo twice is saved once."""
+    sha = hashlib.sha256(data).hexdigest()
+    existing = row(conn.execute("SELECT * FROM records WHERE sha256 = ?", (sha,)).fetchone())
+    if existing:
+        return {"status": "already_saved", "record": record_out(existing)}
+    parsed = llm.read_health_record(base64.b64encode(data).decode(), caption)
+    if not parsed.get("is_health_record") or not parsed.get("findings") and not parsed.get("summary"):
+        return {"status": "not_a_record", "record": None}
+    findings = [{k: str(f.get(k, "")).strip() for k in ("name", "value", "unit", "reference_range", "flag")}
+                for f in parsed.get("findings", []) if str(f.get("name", "")).strip()]
+    rid = f"rec_{sha[:10]}"
+    with conn:
+        conn.execute(
+            "INSERT INTO records (id, person_id, record_type, title, record_date, source, ordered_by, findings, summary,"
+            " shared_by, origin, sha256, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (rid, member["person_id"], parsed.get("record_type", "Health record")[:120],
+             parsed.get("record_type", "Health record")[:120], parsed.get("date", "")[:40],
+             parsed.get("source", "")[:120], parsed.get("ordered_by", "")[:120], json.dumps(findings),
+             parsed.get("summary", "")[:500], member["id"], origin, sha, iso(now())))
+        flagged = [f for f in findings if f["flag"] in ("low", "high", "abnormal")]
+        log_event(conn, member["person_id"], "record_added", member["id"], None,
+                  {"title": parsed.get("record_type"), "date": parsed.get("date"), "summary": parsed.get("summary"),
+                   "flagged": len(flagged), "results": len(findings), "origin": origin})
+    return {"status": "saved", "record": record_out(row(conn.execute("SELECT * FROM records WHERE id = ?", (rid,)).fetchone()))}
+
+
+def record_confirmation(result: dict) -> str:
+    if result["status"] == "not_a_record":
+        return "I couldn't find a medical document in that photo, so nothing was saved to Ruth's records."
+    r = result["record"]
+    head = "Already in Ruth's records" if result["status"] == "already_saved" else "Saved to Ruth's records"
+    lines = [f"{head}: {r['record_type']}, {r['record_date']}" + (f" ({r['source']})" if r["source"] else "")]
+    if r["flagged"]:
+        lines.append("Out of range:")
+        lines += [f"• {f['name']}: {f['value']} {f['unit']} ({f['flag']}; range {f['reference_range']})" for f in r["flagged"]]
+    lines.append(f"{len(r['findings']) - len(r['flagged'])} other results in range. Everyone in Ruth's circle can now see this. "
+                 "Talk to her doctor about what the results mean.")
+    return "\n".join(lines)
+
+
+@app.get("/api/records")
+def list_records(member: dict = Depends(current_member)):
+    require_caregiver(member)
+    names = member_names()
+    return [record_out(r, names) for r in rows(conn.execute("SELECT * FROM records ORDER BY created_at DESC"))]
+
+
+class ImageIn(BaseModel):
+    sender_id: str
+    paths: list[str]
+    caption: str = ""
+
+
+@app.post("/api/internal/image", dependencies=[Depends(internal_only)])
+def internal_image(body: ImageIn):
+    """Called in the background when a caregiver sends a photo in Telegram. Replies in the chat when done."""
+    member = _member_by_sender(body.sender_id)
+    if not member or member["role"] not in memory.CAREGIVER_ROLES:
+        return {"ok": False, "error": "Only caregivers' photos are saved to records"}
+    results = []
+    for raw in body.paths[:4]:
+        path = Path(raw).expanduser().resolve()
+        if HERMES_IMAGE_CACHE.resolve() not in path.parents or not path.is_file():
+            continue  # only read images Hermes itself downloaded
+        data = path.read_bytes()
+        if not _image_mime(data):
+            continue
+        try:
+            result = save_record(member, data, "chat", body.caption)
+        except Exception as exc:
+            log.warning("reading health record failed: %s", exc)
+            result = None
+        if result:
+            results.append(result)
+            if member["telegram_id"]:
+                telegram.send_message(member["telegram_id"], record_confirmation(result), "Open Care-Bridge", "/?tab=circle")
+    return {"ok": True, "results": [{"status": r["status"], "record_id": r["record"]["id"] if r["record"] else None}
+                                    for r in results]}
+
+
+def _records_block(is_ruth: bool) -> list[str]:
+    recs = [record_out(r) for r in rows(conn.execute("SELECT * FROM records ORDER BY created_at DESC LIMIT 5"))]
+    if not recs:
+        return []
+    if is_ruth:
+        lines = ["HER HEALTH RECORDS (do not read out numbers or explain results; say Dr. Okafor or Priya will go over them):"]
+        lines += [f"- {r['record_type']} from {r['record_date']} is in her records." for r in recs]
+        return lines
+    lines = ["HEALTH RECORDS (copied from documents; never interpret them or give medical advice; suggest asking her doctor):"]
+    for r in recs:
+        flagged = "; ".join(f"{f['name']} {f['value']} {f['unit']} ({f['flag']}, range {f['reference_range']})"
+                            for f in r["flagged"]) or "all results in range"
+        lines.append(f"- {r['record_type']}, {r['record_date']}, {r['source']}, ordered by {r['ordered_by'] or 'unknown'}, "
+                     f"shared by {r['shared_by']}. Out of range: {flagged}. "
+                     f"{len(r['findings']) - len(r['flagged'])} other results in range.")
+        if r is recs[0]:
+            lines.append("  All results: " + "; ".join(f"{f['name']} {f['value']} {f['unit']}" for f in r["findings"]))
+    return lines
+
 # ---------- internal endpoints for the Hermes plugin ----------
 
 class ContextIn(BaseModel):
     sender_id: str
     message: str = ""
+    image_pending: bool = False
 
 
 def _member_by_sender(sender_id: str) -> dict | None:
@@ -919,6 +1048,7 @@ EVENT_LABELS = {
     "schedule_changed": "Daily schedule changed",
     "schedule_removed": "Removed from the daily schedule",
     "log_refused": "Refused",
+    "record_added": "Health record added",
 }
 RUTH_EVENT_TYPES = ("older_adult_message", "circle_notified", "explainer_done")
 NOTIFY_COOLDOWN_MINUTES = 10
@@ -1055,7 +1185,7 @@ def internal_context(body: ContextIn):
     options = [{"id": f["id"], "label": f["text"][:140]} for f in facts]
     message = body.message.strip()
 
-    hints = laya.read_message(message, options) if message else None
+    hints = laya.read_message(message, options) if message else None  # photo-only messages skip analysis
     analysis = None
     if message:
         try:
@@ -1119,6 +1249,13 @@ def internal_context(body: ContextIn):
     lines += _profile_block(person) + [""] + _circle_block(member) + [""]
     lines += _facts_block(facts, fact["id"] if fact else None, "HER CARE PLAN:" if is_ruth else "THE HANDBOOK:")
     lines += [""] + daily.context_lines(conn, member_names(), for_ruth=is_ruth)
+    records_lines = _records_block(is_ruth)
+    if records_lines:
+        lines += [""] + records_lines
+    if body.image_pending and not is_ruth:
+        actions.append("They sent a photo. Care-Bridge is reading it and, if it's a medical document, will save it to "
+                       "Ruth's records and confirm in this chat in about a minute. Describe what you can see, but don't "
+                       "say it has been saved yet and don't interpret medical results.")
     if not is_ruth:
         lines += [""] + _state_block(member)
     recent = _recent_block(member)

@@ -7,6 +7,8 @@ Gemma never reads the database and never sends Telegram messages itself.
 import json
 import logging
 import os
+import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -19,6 +21,9 @@ SECRET_FILE = ROOT / "services" / "api" / "data" / "internal_secret"
 
 # Tool handlers receive the session id but not the sender, so remember who each session belongs to.
 _SENDER_BY_SESSION: dict[str, str] = {}
+# Photos a sender just sent: the reply hook tells Gemma a record is being saved. Expires after a few minutes.
+_PHOTO_AT: dict[str, float] = {}
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".heic")
 
 
 def _secret() -> str:
@@ -46,6 +51,29 @@ def _post(path: str, payload: dict, timeout: float = 30.0) -> dict:
         return {"ok": False, "error": "Care-Bridge is unavailable right now"}
 
 
+def _on_message(event=None, **kwargs):
+    """pre_gateway_dispatch: when a photo arrives, read it in the background so Hermes isn't held up.
+
+    Reading a document photo takes Gemma about 40 seconds, longer than a reply hook may run, so the API reads it
+    on its own thread and confirms in the chat when it's saved. Always returns None so the message is handled normally.
+    """
+    try:
+        source = getattr(event, "source", None)
+        platform = getattr(getattr(source, "platform", None), "value", "")
+        sender = str(getattr(event, "user_id", None) or getattr(source, "user_id", "") or "")
+        paths = [u for u, t in zip(getattr(event, "media_urls", []) or [],
+                                   (getattr(event, "media_types", []) or []) + [""] * 10)
+                 if str(t).startswith("image/") or str(u).lower().endswith(IMAGE_EXTS)]
+        if platform != "telegram" or not sender or not paths:
+            return None
+        _PHOTO_AT[sender] = time.time()
+        payload = {"sender_id": sender, "paths": paths, "caption": getattr(event, "text", "") or ""}
+        threading.Thread(target=_post, args=("/api/internal/image", payload, 400.0), daemon=True).start()
+    except Exception as exc:  # never break message handling
+        log.warning("care-bridge photo hook failed: %s", exc)
+    return None
+
+
 def _care_bridge_context(**kwargs):
     if str(kwargs.get("platform") or "") not in ("telegram", ""):
         return None
@@ -56,8 +84,10 @@ def _care_bridge_context(**kwargs):
         return None
     if session_id:
         _SENDER_BY_SESSION[session_id] = sender_id
+    pending = time.time() - _PHOTO_AT.pop(sender_id, 0) < 300
     result = _post("/api/internal/context",
-                   {"sender_id": sender_id, "message": message if isinstance(message, str) else ""}, timeout=15.0)
+                   {"sender_id": sender_id, "message": message if isinstance(message, str) else "",
+                    "image_pending": pending}, timeout=25.0)
     if not result.get("role") or not result.get("context"):
         return None
     return {"context": result["context"]}
@@ -132,3 +162,4 @@ def register(ctx):
     register_hook = getattr(ctx, "register_hook", None)
     if callable(register_hook):
         register_hook("pre_llm_call", _care_bridge_context)
+        register_hook("pre_gateway_dispatch", _on_message)

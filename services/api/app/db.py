@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS logs (
   status TEXT, note TEXT, logged_by TEXT, logged_at TEXT, updated_at TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS logs_one_per_schedule_day ON logs (schedule_id, date) WHERE schedule_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS records (
+  id TEXT PRIMARY KEY, person_id TEXT, record_type TEXT, title TEXT, record_date TEXT, source TEXT, ordered_by TEXT,
+  findings TEXT, summary TEXT, shared_by TEXT, origin TEXT, sha256 TEXT UNIQUE, created_at TEXT
+);
 CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY, person_id TEXT, filename TEXT, sha256 TEXT, uploaded_by TEXT,
   summary TEXT, created_at TEXT
