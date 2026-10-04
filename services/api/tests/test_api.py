@@ -5,6 +5,8 @@ import tempfile
 os.environ["CAREBRIDGE_DB"] = os.path.join(tempfile.mkdtemp(), "test.sqlite3")
 os.environ["LAYA_URL"] = "http://127.0.0.1:9"  # nothing listens here, so Laya fallbacks run
 os.environ["OLLAMA_URL"] = "http://127.0.0.1:9"  # keep tests offline and deterministic
+os.environ["CAREBRIDGE_DEV_AUTH"] = "1"  # tests sign in with X-Dev-User
+os.environ["CAREBRIDGE_TELEGRAM_IDS"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 

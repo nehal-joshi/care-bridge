@@ -140,3 +140,18 @@ def pick_fact(message: str, facts: list[dict], conditions: list[str] | None = No
               "instruction applies, given her conditions. Then pick that fact's id, or \"none\" if no fact applies.")
     choice = chat_json(system, f"Care facts:\n{listing}\n\nMessage: {message}", schema, timeout=30.0).get("fact_id")
     return choice if choice in ids and choice != "none" else None
+
+
+def grade_answer(question: str, approved_answer: str, caregiver_answer: str) -> dict:
+    """C4: grade a typed answer as correct, partial or incorrect."""
+    schema = {"type": "object",
+              "properties": {"reason": {"type": "string"},
+                             "grade": {"type": "string", "enum": ["correct", "partial", "incorrect"]}},
+              "required": ["reason", "grade"]}
+    system = ("You check a caregiver's answer to a flashcard about an older adult's care. Compare the caregiver's answer "
+              "with the correct answer. First give a one-sentence reason. Grade \"correct\" if it has the same meaning, even "
+              "with different words or abbreviations; \"partial\" if it is on the right track but missing an important "
+              "detail; \"incorrect\" if it is wrong, unsafe, unrelated or blank.")
+    r = chat_json(system, f"Question: {question}\nCorrect answer: {approved_answer}\nCaregiver's answer: {caregiver_answer}",
+                  schema, timeout=60.0)
+    return {"grade": r["grade"], "reason": r.get("reason", ""), "by": "gemma"}

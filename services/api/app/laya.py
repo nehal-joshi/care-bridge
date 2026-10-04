@@ -51,26 +51,21 @@ def _noul(answer: dict | None) -> float | None:
     return None
 
 
+# Measured on the demo facts: only clearly correct answers scored at or above this, so Laya may fast-track
+# "correct" but never marks anything wrong. Everything below goes to Gemma.
+FAST_CORRECT_AT = 0.95
+
+
 def grade_answer(question: str, approved_answer: str, caregiver_answer: str) -> dict | None:
-    """C4: grade a typed answer as correct, partial or incorrect."""
+    """C4 fast path: returns a "correct" grade when Laya is very sure, otherwise None (the caller asks Gemma)."""
     answers = decide(
-        {"question": question, "approved_answer": approved_answer, "caregiver_answer": caregiver_answer},
-        {"grade": {
-            "type": "choice",
-            "instructions": "How well does caregiver_answer match approved_answer in meaning?",
-            "criteria": {
-                "correct": "same meaning, nothing important missing",
-                "partial": "partly right or missing an important detail",
-                "incorrect": "wrong, unrelated or blank",
-            },
-        }},
+        f"Question: {question}\nCorrect answer: {approved_answer}\nCaregiver's answer: {caregiver_answer}",
+        {"correct": {"type": "noul", "instructions": "Is the caregiver's answer correct according to the correct answer?"}},
     )
-    if answers is None:
-        return None
-    grade, confidence = _choice(answers.get("grade"))
-    if grade not in ("correct", "partial", "incorrect"):
-        return None
-    return {"grade": grade, "confidence": round(confidence, 3), "by": "laya"}
+    score = _noul((answers or {}).get("correct"))
+    if score is not None and score >= FAST_CORRECT_AT:
+        return {"grade": "correct", "confidence": round(score, 3), "by": "laya"}
+    return None
 
 
 def read_message(message: str, facts: list[dict]) -> dict | None:
@@ -92,11 +87,12 @@ def read_message(message: str, facts: list[dict]) -> dict | None:
     if answers is None:
         return None
     fact_id, fact_confidence = _choice(answers.get("fact"))
-    intent, _ = _choice(answers.get("intent"))
+    intent, intent_confidence = _choice(answers.get("intent"))
     return {
         "fact_id": None if fact_id in (None, "none") else fact_id,
         "fact_confidence": round(fact_confidence, 3),
         "intent": intent,
+        "intent_confidence": round(intent_confidence, 3),
         "unsure": _noul(answers.get("unsure")),
         "by": "laya",
     }

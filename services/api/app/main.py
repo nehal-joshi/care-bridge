@@ -26,6 +26,8 @@ if conn.execute("SELECT COUNT(*) FROM persons").fetchone()[0] == 0:
 
 EXTRACT_CACHE = DATA_DIR / "extract-cache"
 TIER_ORDER = {"warning": 0, "routine": 1, "nice": 2}
+LAYA_FACT_AT = 0.9  # use Laya's fact pick only when it is this sure; otherwise Gemma picks
+LAYA_HINT_AT = 0.7  # pass Laya's intent and "unsure" hints to Gemma only above this
 GRADE_TO_RATING = {"correct": "good", "partial": "hard", "incorrect": "again"}
 EDITOR_ROLES = ("primary", "family")
 
@@ -460,7 +462,12 @@ def record_review(body: ReviewIn, member: dict = Depends(current_member)):
     if not rating and body.answer_text and body.answer_text.strip():
         grade = laya.grade_answer(fact["question"], fact["answer"], body.answer_text.strip())
         if grade is None:
-            return {"needs_self_rating": True, "answer": fact["answer"], "reason": "Laya is unavailable"}
+            try:
+                grade = llm.grade_answer(fact["question"], fact["answer"], body.answer_text.strip())
+            except Exception as exc:
+                log.warning("Gemma grading failed: %s", exc)
+        if grade is None:
+            return {"needs_self_rating": True, "answer": fact["answer"], "reason": "Grading is unavailable"}
         rating = GRADE_TO_RATING[grade["grade"]]
     if rating not in memory.RATINGS:
         raise HTTPException(400, "Rating must be again, hard, good or easy")
@@ -658,6 +665,9 @@ def internal_context(body: ContextIn):
     facts = [f for f in rows(conn.execute("SELECT * FROM facts WHERE status = 'approved'")) if f["audience"] in audience]
     options = [{"id": f["id"], "label": f["text"][:140]} for f in facts]
     decision = laya.read_message(body.message, options) if body.message.strip() else None
+    hints = decision
+    if decision is not None and decision["fact_confidence"] < LAYA_FACT_AT:
+        decision = None  # Laya isn't sure enough; let Gemma pick, but keep Laya's intent hints.
     if decision is None and body.message.strip():
         try:
             conditions = json.loads(conn.execute("SELECT conditions FROM persons LIMIT 1").fetchone()["conditions"])
@@ -677,10 +687,14 @@ def internal_context(body: ContextIn):
                 lines.append(f"This fact has an explainer: carebridge_show_explainer(fact_id=\"{fact['id']}\").")
         else:
             lines.append("CARE FACT: none found for this message.")
-        hints = [f"intent={decision.get('intent')}"]
-        if decision.get("unsure") is not None:
-            hints.append(f"seems unsure={decision['unsure']:.2f}")
-        lines.append("Hints from a fast classifier (suggestions only, never permission to act): " + ", ".join(hints))
+        notes = []
+        # A matched care fact already says what the message is about, so the intent hint only helps when none matched.
+        if not fact and hints and hints.get("intent") and hints.get("intent_confidence", 0) >= LAYA_HINT_AT:
+            notes.append(f"she seems to want: {hints['intent'].replace('_', ' ')}")
+        if hints and (hints.get("unsure") or 0) >= LAYA_HINT_AT:
+            notes.append("she may be confused or stuck; slow down and offer one small step")
+        if notes:
+            lines.append("Hints from a fast classifier (suggestions only, never permission to act): " + "; ".join(notes))
         return {"role": "older_adult", "fact_id": fact["id"] if fact else None, "decision": decision,
                 "context": "\n".join(lines)}
 

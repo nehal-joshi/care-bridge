@@ -92,7 +92,15 @@ These change your live Hermes setup, so back up `~/.hermes/config.yaml` and `~/.
 2. Settings → API → Decision API: turn on **Serve requests** and **Keyless API access**. Keep the multilingual model on CPU.
 3. Test: `curl -s localhost:8888/v1/systemone -H 'Content-Type: application/json' -d '{"model":"laya","state":"test","questions":{"ok":{"type":"noul","instructions":"Is this a test?"}}}'`
 
-No restart is needed; the API calls Laya on each request. Typed answers in briefs are then graded by Laya, and Ruth's messages are matched to facts by Laya instead of keywords.
+No restart is needed; the API calls Laya on each request.
+
+How Care-Bridge uses Laya (multilingual model), based on testing with the demo facts:
+
+- **Grading typed answers:** Laya fast-tracks answers it scores 0.95 or higher as correct. Everything else goes to Gemma, which handles partial and wrong answers. Laya alone marked some wrong answers correct, so it never grades on its own.
+- **Ruth's messages:** Laya's fact pick is used when it is at least 90% sure (for example "When do I take my water pill?"). Otherwise Gemma picks, told about Ruth's conditions; keywords are the last fallback.
+- **Hints:** Laya's "seems unsure" signal, and its intent when no care fact matched, are passed to Gemma only at 70% confidence or more. They are hints, never permission to act.
+
+Studio runs at `http://localhost:8888`. Start it after a reboot with `unsloth studio -p 8888`.
 
 ## Demo controls
 
