@@ -938,7 +938,8 @@ def report_send(body: ReportIn, member: dict = Depends(current_member)):
 
 # ---------- health records (photos of lab reports and other medical documents) ----------
 
-HERMES_IMAGE_CACHE = Path.home() / ".hermes" / "image_cache"
+# Folders where Hermes stores photos it downloads from Telegram. The API reads images from nowhere else.
+HERMES_IMAGE_DIRS = [Path.home() / ".hermes" / "cache" / "images", Path.home() / ".hermes" / "image_cache"]
 IMAGE_TYPES = {b"\x89PNG": "image/png", b"\xff\xd8\xff": "image/jpeg", b"RIFF": "image/webp"}
 
 
@@ -1018,7 +1019,8 @@ def internal_image(body: ImageIn):
     results = []
     for raw in body.paths[:4]:
         path = Path(raw).expanduser().resolve()
-        if HERMES_IMAGE_CACHE.resolve() not in path.parents or not path.is_file():
+        if not any(d.resolve() in path.parents for d in HERMES_IMAGE_DIRS) or not path.is_file():
+            log.warning("Ignored photo outside Hermes's image folders: %s", path)
             continue  # only read images Hermes itself downloaded
         data = path.read_bytes()
         if not _image_mime(data):

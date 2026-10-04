@@ -166,7 +166,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
 def test_photo_in_chat_becomes_a_record(monkeypatch, tmp_path):
     from app import llm, main
     monkeypatch.setattr(llm, "read_health_record", lambda *a, **k: FAKE_CBC)
-    monkeypatch.setattr(main, "HERMES_IMAGE_CACHE", tmp_path)
+    monkeypatch.setattr(main, "HERMES_IMAGE_DIRS", [tmp_path])
     img = tmp_path / "cbc.png"
     img.write_bytes(PNG)
     outside = tmp_path.parent / "secret.png"
@@ -188,7 +188,7 @@ def test_photo_in_chat_becomes_a_record(monkeypatch, tmp_path):
 
 def test_ruth_photos_are_not_saved_as_records(monkeypatch, tmp_path):
     from app import main
-    monkeypatch.setattr(main, "HERMES_IMAGE_CACHE", tmp_path)
+    monkeypatch.setattr(main, "HERMES_IMAGE_DIRS", [tmp_path])
     img = tmp_path / "x.png"
     img.write_bytes(PNG + b"ruth")
     r = client.post("/api/internal/image", json={"sender_id": "4242", "paths": [str(img)]},
