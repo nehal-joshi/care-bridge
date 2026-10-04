@@ -1,125 +1,126 @@
-import { Chat, Pull, Reveal } from "./Reveal";
-
-const TELEGRAM_URL = process.env.NEXT_PUBLIC_TELEGRAM_URL || "https://t.me/CareBridgeBot";
-
-function TelegramButton({ dark = false, label = "Open in Telegram" }: { dark?: boolean; label?: string }) {
-  return (
-    <a
-      href={TELEGRAM_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`group inline-flex items-center gap-2 self-start rounded-full py-1.5 pl-6 pr-1.5 text-lg font-semibold transition-all hover:gap-3.5 ${
-        dark ? "bg-ink text-cream" : "bg-cream text-ink"
-      }`}
-    >
-      {label}
-      <span className={`flex h-11 w-11 items-center justify-center rounded-full transition-transform group-hover:scale-110 ${dark ? "bg-cream" : "bg-ink"}`}>
-        <svg viewBox="0 0 24 24" className={`h-5 w-5 ${dark ? "text-ink" : "text-cream"}`} fill="currentColor" aria-hidden>
-          <path d="M21.9 4.3 2.7 11.7c-1.3.5-1.3 1.3-.2 1.6l4.9 1.5 1.9 5.8c.2.6.1.8.7.8.4 0 .6-.2.9-.4l2.3-2.3 4.8 3.5c.9.5 1.5.2 1.7-.8L22.9 5.5c.3-1.3-.5-1.9-1-1.2Zm-3.4 3.6-8.9 8-.4 4-1.6-5.2 10.9-6.8Z" />
-        </svg>
-      </span>
-    </a>
-  );
-}
+import Image from "next/image";
+import { BellRing, CalendarClock, EyeOff, Network, Shuffle, UserRound, Lock, UserCheck, MessageSquareText, Server } from "lucide-react";
+import { Reveal } from "./Reveal";
+import { Logo } from "@/components/site/logo";
+import { TelegramLink } from "@/components/site/telegram";
+import { Showcase } from "@/components/site/showcase";
+import { Faq } from "@/components/site/faq";
+import { Separator } from "@/components/ui/separator";
 
 const nav = [
   ["The problem", "#problem"],
   ["How it works", "#how"],
-  ["Coverage", "#coverage"],
-  ["Ruth", "#ruth"],
+  ["Principles", "#principles"],
+  ["FAQ", "#faq"],
 ];
 
-const circle = [
-  { name: "Ruth", role: "Ruth Alvarez, 78", note: "Heart failure and early memory loss. Lives alone, with an aide each day.", tone: "bg-amber text-ink" },
-  { name: "Priya", role: "Daughter · primary caregiver", note: "Holds the plan. Adds facts, approves every one, sees the full picture.", tone: "bg-cream text-ink" },
-  { name: "Marcus", role: "Weekday aide", note: "Gets a 60-second brief before each shift. Needs the warning signs fresh.", tone: "bg-white/5 ring-1 ring-white/10" },
-  { name: "Dev", role: "Son · weekends", note: "Steps in on Saturdays. Reliable on warning signs, rusty on the routine.", tone: "bg-white/5 ring-1 ring-white/10" },
+const problems = [
+  {
+    icon: UserRound,
+    t: "The plan lives in one head",
+    d: "Medicines, allergies, routines and warning signs are known by whoever has done the job longest, usually a single family member. Nothing is written down in a form the next person can use at a glance.",
+  },
+  {
+    icon: Shuffle,
+    t: "Every handoff loses something",
+    d: "Aides rotate, relatives cover weekends, shifts overlap. Each handoff is a hurried conversation, and the detail that matters most is the one most likely to be left out.",
+  },
+  {
+    icon: EyeOff,
+    t: "Nobody can see who knows what",
+    d: "A caregiver might have been told about the allergy once, months ago. There is no way to tell whether they still remember it, so the gap stays hidden until something goes wrong.",
+  },
+  {
+    icon: CalendarClock,
+    t: "Plans change faster than people hear",
+    d: "A dose is adjusted, a new symptom to watch for is added. The update reaches some caregivers and not others, so the circle is quietly working from different versions of the truth.",
+  },
+  {
+    icon: Network,
+    t: "The older adult is left out of their own plan",
+    d: "The person being cared for often cannot recall their own instructions, and the plan is written for caregivers, not for them. They have nobody to ask in the moment they need an answer.",
+  },
 ];
 
-const steps = [
-  { n: "1", t: "Priya adds the discharge papers", d: "Upload a PDF or type a fact. Gemma drafts plain-language facts with their source. Nothing goes live until Priya approves it." },
-  { n: "2", t: "Marcus gets a 60-second brief", d: "A Telegram nudge opens up to five question-first cards: what changed, then what he is about to forget. Type an answer and it is graded on the spot." },
-  { n: "3", t: "Everyone stays covered", d: "Warning signs are rehearsed most. If only one person reliably knows one, the family sees it before it matters." },
+const timeline = [
+  ["Monday", "A new rule is added to the plan: if weight jumps overnight, call the nurse."],
+  ["Wednesday", "A different aide covers the shift. The rule was never passed on."],
+  ["Thursday", "Swelling appears. The scale shows a jump. No one on shift knows it matters."],
+  ["Friday", "The family finds out after the fact. The information existed, but it was in the wrong place."],
 ];
 
-const warnings = [
-  { q: "Weight up 3 lb overnight?", who: ["ok", "bad", "ok"] },
-  { q: "Sulfa allergy", who: ["ok", "ok", "ok"] },
-  { q: "Walker brakes before she stands", who: ["ok", "amber", "ok"] },
-  { q: "New confusion can mean a UTI", who: ["ok", "ok", "amber"] },
+const principles = [
+  { icon: UserCheck, t: "AI suggests, people approve", d: "Models draft facts and questions. A person says yes before anything is saved or sent." },
+  { icon: Lock, t: "Nothing without a yes", d: "The assistant never contacts the circle, approves a fact or concludes anything about health on its own." },
+  { icon: MessageSquareText, t: "Plain words, one thing at a time", d: "Short sentences, no tests, no wrong answers. Built for people who are tired, busy or new." },
+  { icon: Server, t: "Runs on a local machine", d: "Models run locally, and caregiver-only facts are filtered before the companion sees anything." },
 ];
-
-const cell = {
-  ok: "bg-ok/90 text-ink",
-  amber: "bg-amber text-ink",
-  bad: "bg-bad text-ink pulse-red",
-} as const;
-const cellLabel = { ok: "Knows it", amber: "Fading", bad: "Not yet" } as const;
 
 export default function Home() {
   return (
-    <main>
-      {/* ============ HERO ============ */}
-      <section className="h-svh min-h-[640px] w-full p-2 sm:p-3">
-        <div className="relative h-full w-full overflow-hidden rounded-2xl bg-[radial-gradient(120%_100%_at_50%_0%,#3a2f22_0%,#1c1712_45%,#101014_100%)] md:rounded-[2rem]">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            poster="/hero-poster.jpg"
-            className="absolute inset-0 h-full w-full object-cover"
-            aria-label="An old man sits on a cliff above the clouds, working on his laptop at golden hour"
-          >
-            <source src="/hero.mp4" type="video/mp4" />
-          </video>
-          <div className="noise pointer-events-none absolute inset-0 opacity-70 mix-blend-overlay" />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-black/5 to-black/75" />
-
-          <nav className="absolute left-1/2 top-0 z-20 -translate-x-1/2">
-            <div className="flex items-center gap-4 rounded-b-2xl bg-black px-5 py-2.5 sm:gap-6 md:gap-10 md:rounded-b-3xl md:px-8">
-              {nav.map(([l, h]) => (
-                <a key={h} href={h} className="text-xs text-cream/80 transition-colors hover:text-cream sm:text-sm">
-                  {l}
-                </a>
-              ))}
-            </div>
+    <main className="overflow-x-clip">
+      {/* ============ NAV ============ */}
+      <header className="sticky top-0 z-40 px-3 pt-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between rounded-full bg-paper/85 px-4 py-2.5 shadow-sm ring-1 ring-border backdrop-blur-md sm:px-6">
+          <a href="#top" aria-label="Care-Bridge home"><Logo /></a>
+          <nav className="hidden items-center gap-8 text-[15px] font-medium md:flex">
+            {nav.map(([l, h]) => (
+              <a key={h} href={h} className="text-muted-foreground transition-colors hover:text-foreground">{l}</a>
+            ))}
           </nav>
-
-          <div className="absolute inset-x-0 bottom-0 px-5 pb-4 sm:px-8 md:px-10">
-            <div className="grid grid-cols-12 items-end gap-4">
-              <div className="col-span-12 lg:col-span-8">
-                <Pull
-                  as="h1"
-                  text="Care Bridge"
-                  className="font-display text-[17vw] font-medium leading-[0.9] tracking-[-0.04em] sm:text-[15vw] lg:text-[11vw]"
-                />
-              </div>
-              <div className="col-span-12 flex flex-col gap-5 pb-4 lg:col-span-4 lg:pb-8">
-                <Reveal delay={0.5}>
-                  <p className="text-base leading-snug text-cream/85 sm:text-lg">
-                    What matters about Ruth&rsquo;s care lives in one person&rsquo;s head. Care-Bridge makes sure the right person remembers the right thing when it matters.
-                  </p>
-                </Reveal>
-                <Reveal delay={0.7} className="flex flex-col gap-3">
-                  <TelegramButton />
-                  <p className="text-sm text-cream/60">No new app. Everything lives in Telegram.</p>
-                </Reveal>
-              </div>
-            </div>
-          </div>
+          <TelegramLink label="Open Telegram" className="h-10 px-5 text-sm" />
         </div>
+      </header>
+
+      {/* ============ INTRO ============ */}
+      <section id="top" className="mx-auto grid max-w-6xl items-center gap-14 px-4 pb-24 pt-16 md:px-8 lg:grid-cols-12 lg:pt-24">
+        <div className="lg:col-span-7">
+          <Reveal>
+            <span className="inline-flex items-center gap-2 rounded-full bg-sky px-4 py-1.5 text-sm font-semibold text-teal">
+              <span className="size-2 rounded-full bg-coral" /> A shared memory for the care circle
+            </span>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <h1 className="font-display mt-6 text-[2.9rem] font-medium leading-[0.98] sm:text-7xl lg:text-[5.4rem]">
+              The right person remembers the right thing, <span className="italic text-coral">when it matters.</span>
+            </h1>
+          </Reveal>
+          <Reveal delay={0.16}>
+            <p className="mt-7 max-w-xl text-xl leading-relaxed text-muted-foreground">
+              Care-Bridge gives everyone who looks after an older adult one shared, always-current plan. Short briefs before each shift, a clear view of who knows what, and a calm companion for the person at the centre.
+            </p>
+          </Reveal>
+          <Reveal delay={0.24} className="mt-9 flex flex-wrap items-center gap-4">
+            <TelegramLink variant="coral" />
+            <a href="#problem" className="text-base font-semibold underline decoration-2 underline-offset-8 hover:text-coral">See the problem we solve</a>
+          </Reveal>
+        </div>
+
+        <Reveal delay={0.2} className="relative lg:col-span-5">
+          <div className="relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-t-[999px] rounded-b-[2.5rem] bg-teal ring-1 ring-border">
+            <Image src="/images/portrait.jpg" alt="A smiling older man at home" fill priority sizes="(min-width:1024px) 420px, 90vw" className="object-cover object-[50%_20%]" />
+          </div>
+          <div className="floaty absolute -left-4 bottom-16 w-60 rounded-2xl bg-paper p-4 shadow-[0_20px_40px_-15px_rgba(14,47,46,.4)] ring-1 ring-border sm:-left-10">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal"><BellRing className="size-4" aria-hidden /> Before your shift</div>
+            <p className="font-display mt-2 text-lg leading-snug">3 cards, about 60 seconds</p>
+            <div className="mt-3 h-2 rounded-full bg-muted"><div className="h-2 w-2/3 rounded-full bg-teal" /></div>
+          </div>
+          <div className="floaty absolute -right-2 top-10 w-52 rounded-2xl bg-foreground p-4 text-background shadow-[0_20px_40px_-15px_rgba(14,47,46,.5)] sm:-right-8" style={{ animationDelay: "-3s" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider text-sun">Coverage alert</p>
+            <p className="mt-2 text-base leading-snug">One warning sign has no backup.</p>
+          </div>
+        </Reveal>
       </section>
 
       {/* ============ MARQUEE ============ */}
-      <div className="overflow-hidden border-y border-white/10 py-5" aria-hidden>
-        <div className="marquee flex w-max gap-12 whitespace-nowrap font-display text-3xl text-cream/70 sm:text-4xl">
+      <div className="overflow-hidden border-y border-border bg-foreground py-5 text-background" aria-hidden>
+        <div className="marquee flex w-max">
           {[0, 1].map((k) => (
-            <div key={k} className="flex gap-12">
-              {["Weight up 3 lb? Call the nurse", "Sulfa allergy", "Walker brakes on before she stands", "New confusion can mean a UTI", "Evening meds with food"].map((t) => (
-                <span key={t} className="flex items-center gap-12">
+            <div key={k} className="flex shrink-0 items-center gap-10 pr-10 font-display text-2xl sm:text-3xl">
+              {["Briefs before every shift", "Warning signs rehearsed most", "Changes reach everyone", "Approved by a person", "Inside Telegram"].map((t) => (
+                <span key={t} className="flex items-center gap-10">
                   {t}
-                  <span className="text-amber">✦</span>
+                  <span className="size-2.5 rounded-full bg-sun" />
                 </span>
               ))}
             </div>
@@ -128,203 +129,127 @@ export default function Home() {
       </div>
 
       {/* ============ PROBLEM ============ */}
-      <section id="problem" className="mx-auto max-w-6xl scroll-mt-6 px-4 py-24 md:px-8">
-        <p className="text-sm uppercase tracking-[0.25em] text-amber">The problem</p>
-        <Pull
-          text="Ruth has heart failure and early memory loss. Three people care for her. The plan is in Priya's head."
-          className="font-display mt-5 max-w-4xl text-4xl font-medium leading-[1.05] tracking-tight sm:text-6xl"
-        />
-        <div className="mt-14 grid gap-4 md:grid-cols-4">
-          {circle.map((c, i) => (
-            <Reveal key={c.name} delay={i * 0.1}>
-              <div className={`h-full rounded-2xl p-6 ${c.tone}`}>
-                <div className="font-display text-4xl font-medium">{c.name}</div>
-                <div className="mt-1 text-sm font-semibold uppercase tracking-wider opacity-70">{c.role}</div>
-                <p className="mt-4 text-base leading-relaxed opacity-90">{c.note}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* ============ HOW ============ */}
-      <section id="how" className="mx-auto max-w-6xl scroll-mt-6 px-4 py-20 md:px-8">
-        <p className="text-sm uppercase tracking-[0.25em] text-amber">How it works</p>
-        <Pull text="Three minutes, start to finish." className="font-display mt-5 text-4xl font-medium tracking-tight sm:text-6xl" />
-        <ol className="mt-12 space-y-4">
-          {steps.map((s, i) => (
-            <li key={s.n}>
-              <Reveal delay={i * 0.1}>
-                <div className="flex items-start gap-5 rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 sm:gap-8 sm:p-8">
-                  <span className="font-display text-6xl leading-none text-amber sm:text-7xl">{s.n}</span>
-                  <div>
-                    <h3 className="text-2xl font-semibold">{s.t}</h3>
-                    <p className="mt-2 max-w-2xl text-lg leading-relaxed text-cream/70">{s.d}</p>
-                  </div>
-                </div>
-              </Reveal>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* ============ COVERAGE ============ */}
-      <section id="coverage" className="mx-auto max-w-6xl scroll-mt-6 px-4 py-20 md:px-8">
-        <div className="grid gap-10 lg:grid-cols-12">
+      <section id="problem" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-28 md:px-8">
+        <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <p className="text-sm uppercase tracking-[0.25em] text-amber">Coverage</p>
-            <Pull text="See who reliably knows what." className="font-display mt-5 text-4xl font-medium tracking-tight sm:text-5xl" />
-            <p className="mt-5 text-lg leading-relaxed text-cream/70">
-              Each card is scheduled with spaced repetition, so a warning sign is revisited just before it fades. The grid shows it per person. When Marcus is the red cell, the family hears about it before Ruth&rsquo;s next weigh-in.
-            </p>
+            <div className="lg:sticky lg:top-28">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">The problem</p>
+              <h2 className="font-display mt-4 text-4xl font-medium leading-[1.02] sm:text-6xl">
+                Good care depends on information that keeps slipping through the cracks.
+              </h2>
+              <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
+                Looking after an older adult is rarely a one-person job. Family, paid aides and visiting nurses all share it, and each of them carries a different, partial picture of what matters.
+              </p>
+              <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+                The result is not carelessness. It is a system with no shared memory, where the cost of a forgotten detail is paid by the person being cared for.
+              </p>
+            </div>
           </div>
-          <Reveal className="lg:col-span-7">
-            <div className="rounded-3xl bg-ink2 p-4 ring-1 ring-white/10 sm:p-6">
-              <div className="grid grid-cols-[1.6fr_repeat(3,1fr)] items-center gap-2 text-xs uppercase tracking-wider text-cream/50 sm:text-sm">
-                <span>Warning sign</span>
-                <span className="text-center">Priya</span>
-                <span className="text-center">Marcus</span>
-                <span className="text-center">Dev</span>
-              </div>
-              <div className="mt-3 space-y-2">
-                {warnings.map((w) => (
-                  <div key={w.q} className="grid grid-cols-[1.6fr_repeat(3,1fr)] items-center gap-2">
-                    <span className="pr-2 text-sm leading-snug sm:text-base">{w.q}</span>
-                    {w.who.map((s, i) => (
-                      <span key={i} className={`rounded-xl py-3 text-center text-[11px] font-semibold sm:text-sm ${cell[s as keyof typeof cell]}`}>
-                        {cellLabel[s as keyof typeof cellLabel]}
-                      </span>
-                    ))}
+          <ol className="space-y-4 lg:col-span-7">
+            {problems.map((p, i) => (
+              <li key={p.t}>
+                <Reveal delay={i * 0.05}>
+                  <div className="flex gap-5 rounded-[1.6rem] bg-paper p-6 ring-1 ring-border sm:p-8">
+                    <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sky text-teal">
+                      <p.icon className="size-6" aria-hidden />
+                    </span>
+                    <div>
+                      <h3 className="font-display text-2xl font-medium">{p.t}</h3>
+                      <p className="mt-2 text-lg leading-relaxed text-muted-foreground">{p.d}</p>
+                    </div>
                   </div>
+                </Reveal>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {/* what goes wrong */}
+        <Reveal className="mt-20">
+          <div className="grain relative overflow-hidden rounded-[2.2rem] bg-teal p-8 text-background sm:p-12">
+            <div className="grid gap-10 lg:grid-cols-12">
+              <div className="lg:col-span-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sun">How a missed detail happens</p>
+                <h3 className="font-display mt-4 text-3xl font-medium leading-tight sm:text-5xl">The information was there. It just never reached the person who needed it.</h3>
+                <div className="relative mt-8 aspect-[16/10] overflow-hidden rounded-2xl">
+                  <Image src="/images/tablet.jpg" alt="An older man smiling while using a tablet on his sofa" fill sizes="(min-width:1024px) 440px, 90vw" className="object-cover" />
+                </div>
+              </div>
+              <ol className="relative space-y-6 lg:col-span-7 lg:pl-6">
+                <span className="absolute bottom-3 left-[11px] top-3 w-px bg-background/25 lg:left-[35px]" aria-hidden />
+                {timeline.map(([d, t], i) => (
+                  <li key={d} className="relative flex gap-5 lg:pl-6">
+                    <span className={`relative z-10 mt-1.5 size-6 shrink-0 rounded-full ring-4 ring-teal ${i === 3 ? "bg-coral" : "bg-sun"}`} />
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-wider text-sun">{d}</p>
+                      <p className="mt-1 text-xl leading-snug">{t}</p>
+                    </div>
+                  </li>
                 ))}
-              </div>
-              <div className="mt-5 flex items-start gap-3 rounded-2xl bg-bad/15 p-4 text-sm text-cream ring-1 ring-bad/40 sm:text-base">
-                <span aria-hidden>⚠️</span>
-                <p>Only Priya and Dev reliably know the weight rule. Marcus covers weekdays.</p>
-              </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ============ RUTH ============ */}
-      <section id="ruth" className="mx-auto max-w-6xl scroll-mt-6 px-4 py-20 md:px-8">
-        <div className="grid items-center gap-12 lg:grid-cols-12">
-          <div className="lg:col-span-6">
-            <p className="text-sm uppercase tracking-[0.25em] text-amber">For Ruth</p>
-            <Pull text="A calm companion that answers from her care plan." className="font-display mt-5 text-4xl font-medium tracking-tight sm:text-5xl" />
-            <p className="mt-5 text-lg leading-relaxed text-cream/70">
-              Ruth chats with the same bot. Short sentences, one thing at a time, never a test. It answers only from facts her family has approved, and it never contacts anyone without her yes.
-            </p>
-            <ul className="mt-6 space-y-3 text-lg">
-              {["A “Show me” button opens a three-step explainer, like her morning weigh-in", "Big type, a fixed camera, no way to get it wrong", "Asks before it tells Priya"].map((t) => (
-                <li key={t} className="flex gap-3">
-                  <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-amber" />
-                  <span className="text-cream/85">{t}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <Chat className="relative lg:col-span-6">
-            <div className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber/15 blur-3xl" />
-            <div className="mx-auto max-w-md rounded-[2.2rem] bg-black p-3 ring-1 ring-white/15">
-              <div className="rounded-[1.7rem] bg-[#0e1a22] p-4">
-                <div className="mb-4 flex items-center gap-3 border-b border-white/10 pb-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber font-display text-lg text-ink">C</span>
-                  <div>
-                    <div className="text-base font-semibold leading-tight">Care-Bridge</div>
-                    <div className="text-xs text-cream/50">bot</div>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2.5 text-[15px] leading-snug">
-                  <div className="bubble self-end rounded-2xl rounded-br-md bg-[#2b5278] px-4 py-2.5" style={{ "--d": ".2s" } as React.CSSProperties}>
-                    My ankles look puffy today. What was I supposed to do?
-                  </div>
-                  <div className="bubble max-w-[88%] self-start rounded-2xl rounded-bl-md bg-white/10 px-4 py-2.5" style={{ "--d": "1.1s" } as React.CSSProperties}>
-                    Your care plan says to check your weight. Did the scale go up more than 3 pounds since yesterday?
-                  </div>
-                  <div className="bubble self-end rounded-2xl rounded-br-md bg-[#2b5278] px-4 py-2.5" style={{ "--d": "2s" } as React.CSSProperties}>
-                    Yes, about 4.
-                  </div>
-                  <div className="bubble max-w-[88%] self-start rounded-2xl rounded-bl-md bg-white/10 px-4 py-2.5" style={{ "--d": "2.9s" } as React.CSSProperties}>
-                    Then the plan says to call the heart failure nurse. Want me to show you the weigh-in steps?
-                  </div>
-                  <div className="bubble self-start" style={{ "--d": "3.8s" } as React.CSSProperties}>
-                    <span className="inline-block rounded-xl bg-amber px-5 py-2.5 text-base font-semibold text-ink">Show me</span>
-                  </div>
-                  <div className="bubble max-w-[88%] self-start rounded-2xl rounded-bl-md bg-white/10 px-4 py-2.5" style={{ "--d": "4.7s" } as React.CSSProperties}>
-                    Would you like me to let Priya know too?
-                  </div>
-                  <div className="bubble self-end rounded-2xl rounded-br-md bg-[#2b5278] px-4 py-2.5" style={{ "--d": "5.5s" } as React.CSSProperties}>
-                    Yes please.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Chat>
-        </div>
-      </section>
-
-      {/* ============ EXPLAINER ============ */}
-      <section className="mx-auto max-w-6xl px-4 py-20 md:px-8">
-        <p className="text-sm uppercase tracking-[0.25em] text-amber">The &ldquo;Show me&rdquo; explainer</p>
-        <Pull text="Three taps. No way to get it wrong." className="font-display mt-5 text-4xl font-medium tracking-tight sm:text-6xl" />
-        <div className="mt-12 grid gap-4 md:grid-cols-3">
-          {[
-            ["⚖️", "Step on the scale before breakfast.", "Tap the scale"],
-            ["🔢", "Compare with yesterday\u2019s number.", "Watch the display"],
-            ["📞", "Up more than 3 pounds? Call your heart failure nurse.", "Tap the phone"],
-          ].map(([e, t, a], i) => (
-            <Reveal key={t} delay={i * 0.12}>
-              <div className="relative h-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#2a2118] to-ink2 p-7 ring-1 ring-white/10">
-                <span className="absolute -right-3 -top-6 font-display text-[9rem] leading-none text-white/5">{i + 1}</span>
-                <div className="text-5xl">{e}</div>
-                <p className="mt-6 text-2xl leading-snug">{t}</p>
-                <span className="mt-6 inline-block rounded-full bg-amber px-5 py-2 text-base font-semibold text-ink">{a}</span>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* ============ SAFETY ============ */}
-      <section className="mx-auto max-w-6xl px-4 py-20 md:px-8">
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            ["AI suggests, people approve", "Gemma drafts facts and questions. Only the primary caregiver can approve one, and every fact keeps its source."],
-            ["Nothing without a yes", "The assistant never messages the circle, approves a fact or judges Ruth’s health on its own."],
-            ["Private by design", "Models run on a local machine. Caregiver-only facts are filtered out before Ruth’s assistant sees anything."],
-          ].map(([t, d], i) => (
-            <Reveal key={t} delay={i * 0.12}>
-              <div className="h-full rounded-2xl bg-cream p-7 text-ink">
-                <h3 className="font-display text-2xl font-medium">{t}</h3>
-                <p className="mt-3 text-lg leading-relaxed">{d}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* ============ CTA ============ */}
-      <section id="contact" className="mx-auto max-w-6xl scroll-mt-6 px-4 py-16 md:px-8">
-        <Reveal>
-          <div className="relative overflow-hidden rounded-[2rem] bg-amber p-8 text-center text-ink sm:p-16">
-            <div className="noise pointer-events-none absolute inset-0 opacity-30 mix-blend-multiply" />
-            <div className="relative mx-auto flex max-w-2xl flex-col items-center">
-              <h2 className="font-display text-4xl font-medium tracking-tight sm:text-6xl">Continue in Telegram</h2>
-              <p className="mt-4 max-w-xl text-xl">Briefs, reminders and Ruth&rsquo;s companion all arrive as simple chat messages. Nothing to install.</p>
-              <div className="mt-8">
-                <TelegramButton dark label="Open Care-Bridge" />
-              </div>
+              </ol>
             </div>
           </div>
         </Reveal>
       </section>
 
-      <footer className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 pb-10 pt-4 text-center text-base text-cream/50 md:px-8">
-        <p>🌉 Care-Bridge · a shared memory for the care circle</p>
-        <p className="text-sm">Hackathon demo. All people and data shown are fictional.</p>
+      {/* ============ HOW ============ */}
+      <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 md:px-8">
+        <div className="max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">How it works</p>
+          <h2 className="font-display mt-4 text-4xl font-medium leading-[1.02] sm:text-6xl">One plan, kept current, remembered by everyone.</h2>
+        </div>
+        <div className="mt-12">
+          <Showcase />
+        </div>
+      </section>
+
+      {/* ============ PRINCIPLES ============ */}
+      <section id="principles" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-24 md:px-8">
+        <div className="max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Principles</p>
+          <h2 className="font-display mt-4 text-4xl font-medium leading-[1.02] sm:text-6xl">Helpful AI, with people firmly in charge.</h2>
+        </div>
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {principles.map((p, i) => (
+            <Reveal key={p.t} delay={i * 0.08}>
+              <div className={`h-full rounded-[1.6rem] p-7 ${i === 0 ? "bg-coral text-white" : i === 1 ? "bg-sun" : i === 2 ? "bg-sky" : "bg-paper ring-1 ring-border"}`}>
+                <p.icon className="size-8" aria-hidden />
+                <h3 className="font-display mt-10 text-2xl font-medium leading-tight">{p.t}</h3>
+                <p className={`mt-3 text-base leading-relaxed ${i === 0 ? "text-white/90" : "text-foreground/75"}`}>{p.d}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* ============ FAQ ============ */}
+      <section id="faq" className="mx-auto max-w-4xl scroll-mt-20 px-4 py-20 md:px-8">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">FAQ</p>
+        <h2 className="font-display mb-10 mt-4 text-4xl font-medium leading-[1.02] sm:text-5xl">Questions, answered.</h2>
+        <Faq />
+      </section>
+
+      {/* ============ CTA ============ */}
+      <section className="mx-auto max-w-6xl px-4 py-16 md:px-8">
+        <Reveal>
+          <div className="grain relative grid overflow-hidden rounded-[2.2rem] bg-foreground text-background lg:grid-cols-2">
+            <div className="p-8 sm:p-14">
+              <h2 className="font-display text-4xl font-medium leading-[1.02] sm:text-6xl">Bring the whole circle into one conversation.</h2>
+              <p className="mt-5 max-w-md text-lg leading-relaxed text-background/75">No new app to learn. Open Telegram and start with the first fact.</p>
+              <div className="mt-8"><TelegramLink variant="coral" label="Open Care-Bridge" /></div>
+            </div>
+            <div className="relative min-h-72 lg:min-h-full">
+              <Image src="/images/portrait.jpg" alt="" fill sizes="(min-width:1024px) 560px, 100vw" className="object-cover object-[50%_25%]" />
+              <div className="absolute inset-0 bg-gradient-to-r from-foreground via-foreground/10 to-transparent max-lg:bg-gradient-to-t" />
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      <Separator className="mx-auto max-w-6xl" />
+      <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-10 text-sm text-muted-foreground sm:flex-row md:px-8">
+        <Logo />
+        <p>Hackathon demo. All people and data shown are fictional. Photos from Unsplash.</p>
       </footer>
     </main>
   );
