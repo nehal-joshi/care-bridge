@@ -16,7 +16,7 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 | Today | Features |
 |---|---|
 | Must | A1, A2, A3, B1, B3, B5, B6, B7, C1, C2, C3, C5, C6, D1, D3, F1, F2, F3 |
-| Stretch | B2, B4, B8, C4, C7, D4, D5 |
+| Stretch | E7 first, then C4, D5, B2, C7, C8, D4, B4, B8 (order from [the execution plan](execution-plan.md)) |
 | Fake | D2, E3 |
 | Cut | A4, A5, E1, E2, E4, E5, E6, F4, F5 |
 
@@ -49,11 +49,12 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 |---|---|---|---|---|---|
 | C1 | FSRS card per caregiver per fact | Each caregiver has their own schedule for each fact | Py-FSRS | S | Must |
 | C2 | Pre-shift brief | Under 60 seconds: facts this caregiver is about to forget, plus changes since their last brief | Due-card query | M | Must (headline feature) |
-| C3 | Question-first card | Question shown; answer revealed after an attempt; Again, Hard, Good, Easy | Study card flow | S | Must |
-| C4 | Short-answer grading | Typed answer scored against the fact | Rubric grading | M | Stretch (self-rate until then) |
+| C3 | Question-first card | Question shown; answer revealed after an attempt; rated Didn't know, Partly, Knew it (Again, Hard, Good) | Study card flow | S | Must |
+| C4 | Short-answer grading | Typed answer scored against the fact by Gemma with JSON output | Rubric grading | M | Stretch (self-rate until then) |
 | C5 | Recall target by tier | 0.97 for warning signs, 0.9 for routine, 0.85 for nice to know | Scheduler setting | S | Must |
 | C6 | Bot reminders | Telegram message when warning signs are due, opening the Mini App | Daily reminder cron | S | Must |
 | C7 | My progress | What I know well, what I keep forgetting | Progress report | S | Stretch |
+| C8 | Scenario card | 2D "tap the right object" card drawn from fixed JSON (for example, tap the walker brakes) | None | M | Stretch |
 
 ## D. Circle overview
 
@@ -75,6 +76,7 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 | E4 | Escalation alerts | Alert the circle when the older adult misses a warning sign twice | None | M | Cut |
 | E5 | Memory companion | Daily conversations with practice woven in, photo cards, no "wrong" answers | None | L | Cut |
 | E6 | Recall trend report | Months-long trend in the older adult's recall, shared with family | None | L | Cut |
+| E7 | Companion answers from the care plan | Ruth asks the bot in Telegram; Hermes answers only from approved facts meant for her and asks before notifying Priya | `pre_llm_call` context hook | M | Stretch (first) |
 
 ## F. Platform
 
@@ -95,4 +97,5 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 3. Marcus gets a bot reminder (C6), opens his pre-shift brief (C2) and answers question-first cards (C3).
 4. Priya edits a fact (B7); it appears in the "what changed" feed (D3) and in Marcus's next brief.
 5. The coverage view (D1) shows which warning signs each caregiver knows. A seeded alert (D2) and a seeded responsibility shift (E3) show where the product goes next.
-6. If stretch features are ready, add them to the demo: a voice note or med-list photo (B2, B4), typed-answer grading (C4), or asking the handbook (D5).
+6. Ruth asks the bot about puffy ankles; it answers from her approved plan and, after she agrees, tells Priya (E7).
+7. If other stretch features are ready, add them to the demo: a voice note or med-list photo (B2, B4), typed-answer grading (C4), or asking the handbook (D5).
