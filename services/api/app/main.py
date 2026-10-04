@@ -1190,8 +1190,8 @@ def internal_context(body: ContextIn):
     if message:
         try:
             analysis = llm.analyze_message(member["role"], message, options, person["conditions"])
-        except Exception as exc:
-            log.warning("analyze_message failed: %s", exc)
+        except Exception as exc:  # usually Gemma busy with another reply; the context still goes out without it
+            log.warning("analyze_message skipped: %s", type(exc).__name__)
     if hints and hints["fact_confidence"] >= LAYA_FACT_AT:
         fact_id, by = hints["fact_id"], "laya"
     elif analysis is not None:

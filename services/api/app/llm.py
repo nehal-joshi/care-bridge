@@ -158,7 +158,7 @@ def grade_answer(question: str, approved_answer: str, caregiver_answer: str) -> 
     return {"grade": r["grade"], "reason": r.get("reason", ""), "by": "gemma"}
 
 
-def analyze_message(role: str, message: str, facts: list[dict], conditions: list[str]) -> dict:
+def analyze_message(role: str, message: str, facts: list[dict], conditions: list[str], timeout: float = 10.0) -> dict:
     """Read one chat message: which fact it is about, and what the sender needs. Python decides what to do with it."""
     ids = [f["id"] for f in facts] + ["none"]
     listing = "\n".join(f"- {f['id']}: {f['label']}" for f in facts)
@@ -199,7 +199,7 @@ def analyze_message(role: str, message: str, facts: list[dict], conditions: list
             "message. Never copy a handbook fact; if it changes one, write the new version. Otherwise an empty string."
         )
     schema = {"type": "object", "properties": props, "required": list(props)}
-    result = chat_json(system, f"Care facts:\n{listing}\n\nMessage: {message}", schema, timeout=60.0)
+    result = chat_json(system, f"Care facts:\n{listing}\n\nMessage: {message}", schema, timeout=timeout)
     if result.get("fact_id") not in ids or result.get("fact_id") == "none":
         result["fact_id"] = None
     return result
