@@ -8,7 +8,7 @@ import { Faq } from "@/components/site/faq";
 import { Separator } from "@/components/ui/separator";
 
 const nav = [
-  ["The problem", "#problem"],
+  ["Problem", "#problem"],
   ["How it works", "#how"],
   ["Principles", "#principles"],
   ["FAQ", "#faq"],
@@ -17,43 +17,43 @@ const nav = [
 const problems = [
   {
     icon: UserRound,
-    t: "The plan lives in one head",
-    d: "Medicines, allergies, routines and warning signs are known by whoever has done the job longest, usually a single family member. Nothing is written down in a form the next person can use at a glance.",
+    t: "One person holds the plan",
+    d: "Medicines, allergies and warning signs live in the head of whoever has done this longest. Usually that's one family member.",
   },
   {
     icon: Shuffle,
-    t: "Every handoff loses something",
-    d: "Aides rotate, relatives cover weekends, shifts overlap. Each handoff is a hurried conversation, and the detail that matters most is the one most likely to be left out.",
+    t: "Handoffs drop details",
+    d: "Aides rotate. Relatives cover weekends. Each handoff is a rushed chat, and the most important detail is the easiest to miss.",
   },
   {
     icon: EyeOff,
-    t: "Nobody can see who knows what",
-    d: "A caregiver might have been told about the allergy once, months ago. There is no way to tell whether they still remember it, so the gap stays hidden until something goes wrong.",
+    t: "No one knows who remembers what",
+    d: "The aide heard about the allergy once, months ago. Do they still remember? No one can tell until it matters.",
   },
   {
     icon: CalendarClock,
-    t: "Plans change faster than people hear",
-    d: "A dose is adjusted, a new symptom to watch for is added. The update reaches some caregivers and not others, so the circle is quietly working from different versions of the truth.",
+    t: "Changes don't reach everyone",
+    d: "A dose goes from 20 mg to 40 mg. Some caregivers hear about it. Others keep following the old plan.",
   },
   {
     icon: Network,
-    t: "The older adult is left out of their own plan",
-    d: "The person being cared for often cannot recall their own instructions, and the plan is written for caregivers, not for them. They have nobody to ask in the moment they need an answer.",
+    t: "The older adult is left out",
+    d: "The plan is written for caregivers. The person it's about can't always recall it and has no one to ask when it matters.",
   },
 ];
 
 const timeline = [
-  ["Monday", "A new rule is added to the plan: if weight jumps overnight, call the nurse."],
-  ["Wednesday", "A different aide covers the shift. The rule was never passed on."],
-  ["Thursday", "Swelling appears. The scale shows a jump. No one on shift knows it matters."],
-  ["Friday", "The family finds out after the fact. The information existed, but it was in the wrong place."],
+  ["Monday", "A new rule goes into the plan: if her weight jumps overnight, call the nurse."],
+  ["Wednesday", "A different aide covers the shift. No one tells them the rule."],
+  ["Thursday", "Her ankles swell. The scale jumps. No one on shift knows it matters."],
+  ["Friday", "The family finds out too late. The rule existed. The aide on shift just didn't know it."],
 ];
 
 const principles = [
-  { icon: UserCheck, t: "AI suggests, people approve", d: "Models draft facts and questions. A person says yes before anything is saved or sent." },
-  { icon: Lock, t: "Nothing without a yes", d: "The assistant never contacts the circle, approves a fact or concludes anything about health on its own." },
-  { icon: MessageSquareText, t: "Plain words, one thing at a time", d: "Short sentences, no tests, no wrong answers. Built for people who are tired, busy or new." },
-  { icon: Server, t: "Runs on a local machine", d: "Models run locally, and caregiver-only facts are filtered before the companion sees anything." },
+  { icon: UserCheck, t: "AI drafts, people approve", d: "Nothing reaches the circle until a person approves it." },
+  { icon: Lock, t: "Clear limits", d: "The bot never approves a fact or interprets test results. It contacts the circle only when asked, or in an emergency." },
+  { icon: MessageSquareText, t: "Plain words", d: "Short sentences, one step at a time. No tests and no wrong answers." },
+  { icon: Server, t: "Health data stays home", d: "The AI models run on one computer at home, not in the cloud." },
 ];
 
 export default function Home() {
@@ -77,22 +77,22 @@ export default function Home() {
         <div className="lg:col-span-7">
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full bg-sky px-4 py-1.5 text-sm font-semibold text-teal">
-              <span className="size-2 rounded-full bg-coral" /> A shared memory for the care circle
+              <span className="size-2 rounded-full bg-coral" /> Shared care memory, in Telegram
             </span>
           </Reveal>
           <Reveal delay={0.08}>
             <h1 className="font-display mt-6 text-[2.9rem] font-medium leading-[0.98] sm:text-7xl lg:text-[5.4rem]">
-              The right person remembers the right thing, <span className="italic text-coral">when it matters.</span>
+              One care plan. <span className="italic text-coral">Every caregiver knows it.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.16}>
             <p className="mt-7 max-w-xl text-xl leading-relaxed text-muted-foreground">
-              Care-Bridge gives everyone who looks after an older adult one shared, always-current plan. Short briefs before each shift, a clear view of who knows what, and a calm companion for the person at the centre.
+              Care-Bridge keeps one approved plan for an older adult and makes sure the whole circle remembers it. Caregivers get one-minute briefs before each shift and an alert when only one person knows a warning sign. The person being cared for gets a simple chat they can ask.
             </p>
           </Reveal>
           <Reveal delay={0.24} className="mt-9 flex flex-wrap items-center gap-4">
             <TelegramLink variant="coral" />
-            <a href="#problem" className="text-base font-semibold underline decoration-2 underline-offset-8 hover:text-coral">See the problem we solve</a>
+            <a href="#problem" className="text-base font-semibold underline decoration-2 underline-offset-8 hover:text-coral">See the problem</a>
           </Reveal>
         </div>
 
@@ -117,7 +117,7 @@ export default function Home() {
         <div className="marquee flex w-max">
           {[0, 1].map((k) => (
             <div key={k} className="flex shrink-0 items-center gap-10 pr-10 font-display text-2xl sm:text-3xl">
-              {["Briefs before every shift", "Warning signs rehearsed most", "Changes reach everyone", "Approved by a person", "Inside Telegram"].map((t) => (
+              {["One-minute briefs", "Warning signs first", "Every change reaches everyone", "A person approves every fact", "Runs in Telegram"].map((t) => (
                 <span key={t} className="flex items-center gap-10">
                   {t}
                   <span className="size-2.5 rounded-full bg-sun" />
@@ -135,13 +135,13 @@ export default function Home() {
             <div className="lg:sticky lg:top-28">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">The problem</p>
               <h2 className="font-display mt-4 text-4xl font-medium leading-[1.02] sm:text-6xl">
-                Good care depends on information that keeps slipping through the cracks.
+                Care breaks down at the handoff.
               </h2>
               <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-                Looking after an older adult is rarely a one-person job. Family, paid aides and visiting nurses all share it, and each of them carries a different, partial picture of what matters.
+                Family, aides and nurses share the work. Each of them knows part of the plan.
               </p>
               <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-                The result is not carelessness. It is a system with no shared memory, where the cost of a forgotten detail is paid by the person being cared for.
+                No one is careless. There is just no shared memory, and the person being cared for pays for the gaps.
               </p>
             </div>
           </div>
@@ -169,8 +169,8 @@ export default function Home() {
           <div className="grain relative overflow-hidden rounded-[2.2rem] bg-teal p-8 text-background sm:p-12">
             <div className="grid gap-10 lg:grid-cols-12">
               <div className="lg:col-span-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sun">How a missed detail happens</p>
-                <h3 className="font-display mt-4 text-3xl font-medium leading-tight sm:text-5xl">The information was there. It just never reached the person who needed it.</h3>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sun">How a detail gets missed</p>
+                <h3 className="font-display mt-4 text-3xl font-medium leading-tight sm:text-5xl">The rule was written down. It never reached the aide on shift.</h3>
                 <div className="relative mt-8 aspect-[16/10] overflow-hidden rounded-2xl">
                   <Image src="/images/care-kitchen.jpg" alt="A caregiver and an older woman going through a phone together at the kitchen table" fill sizes="(min-width:1024px) 440px, 90vw" className="object-cover" />
                 </div>
@@ -196,7 +196,7 @@ export default function Home() {
       <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 md:px-8">
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">How it works</p>
-          <h2 className="font-display mt-4 text-4xl font-medium leading-[1.02] sm:text-6xl">One plan, kept current, remembered by everyone.</h2>
+          <h2 className="font-display mt-4 text-4xl font-medium leading-[1.02] sm:text-6xl">One plan. Kept current. Remembered by everyone.</h2>
         </div>
         <div className="mt-12">
           <Showcase />
@@ -207,7 +207,7 @@ export default function Home() {
       <section id="principles" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-24 md:px-8">
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-coral">Principles</p>
-          <h2 className="font-display mt-4 text-4xl font-medium leading-[1.02] sm:text-6xl">Helpful AI, with people firmly in charge.</h2>
+          <h2 className="font-display mt-4 text-4xl font-medium leading-[1.02] sm:text-6xl">AI drafts. People decide.</h2>
         </div>
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {principles.map((p, i) => (
@@ -234,8 +234,8 @@ export default function Home() {
         <Reveal>
           <div className="grain relative grid overflow-hidden rounded-[2.2rem] bg-foreground text-background lg:grid-cols-2">
             <div className="p-8 sm:p-14">
-              <h2 className="font-display text-4xl font-medium leading-[1.02] sm:text-6xl">Bring the whole circle into one conversation.</h2>
-              <p className="mt-5 max-w-md text-lg leading-relaxed text-background/75">No new app to learn. Open Telegram and start with the first fact.</p>
+              <h2 className="font-display text-4xl font-medium leading-[1.02] sm:text-6xl">Get the whole circle on the same page.</h2>
+              <p className="mt-5 max-w-md text-lg leading-relaxed text-background/75">No new app to install. Open Telegram and add your first fact.</p>
               <div className="mt-8"><TelegramLink variant="coral" label="Open Care-Bridge" /></div>
             </div>
             <div className="relative min-h-72 lg:min-h-full">

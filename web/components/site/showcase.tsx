@@ -14,27 +14,27 @@ const tabs = [
 const copy: Record<string, { k: string; h: string; p: string; points: string[] }> = {
   capture: {
     k: "Step 1",
-    h: "Write it down once, in plain words.",
-    p: "Put in every instruction you need: type a note, paste a list, or upload any document you already have. The assistant turns it into short, plain-language facts, each with a question and its source attached.",
-    points: ["Every fact keeps its source and version", "Drafts stay drafts until a person approves them", "Warning signs, routines and nice-to-know are ranked"],
+    h: "Write it down once.",
+    p: "Type a note or upload a discharge PDF. Care-Bridge drafts short facts, keeps the source of each one and flags what changed. You approve each fact before anyone sees it.",
+    points: ["Every fact keeps its source and version", "Nothing goes live until a person approves it", "Warning signs rank above routines"],
   },
   brief: {
     k: "Step 2",
-    h: "A one-minute brief before every shift.",
-    p: "A Telegram nudge opens up to five question-first cards. Changed facts come first, then whatever the person is most likely to forget. Typing an answer is graded in the moment.",
-    points: ["Spaced repetition decides what is due", "Self-rating fallback if the grader is offline", "New or edited facts jump to the top"],
+    h: "A one-minute brief before each shift.",
+    p: "Up to five question cards in Telegram. Changed facts come first, then whatever you're about to forget.",
+    points: ["Spaced repetition picks what's due", "Warning signs get a higher recall target", "Edited facts jump to the top"],
   },
   coverage: {
     k: "Step 3",
-    h: "See who reliably knows what.",
-    p: "For every warning sign, a simple grid shows how well each caregiver remembers it. If only one person knows a critical fact, the family is alerted before it matters.",
-    points: ["Green, amber and red against a target per tier", "Alert when a warning sign has no backup", "A feed of every change to the plan"],
+    h: "See who knows what.",
+    p: "For each warning sign, see how likely each caregiver is to remember it today. Get an alert when only one person knows it.",
+    points: ["Green, amber or red against a target", "An alert when a warning sign has no backup", "A log of every change and who made it"],
   },
   companion: {
     k: "For the older adult",
-    h: "A calm companion that answers from the plan.",
-    p: "The person being cared for chats with the same bot. Short sentences, one thing at a time, never a test. It answers only from approved facts and asks before it contacts anyone.",
-    points: ["A Show me button opens a three-step explainer", "Caregiver-only facts are filtered out first", "Never gives new medical advice"],
+    h: "A simple chat for the person at the centre.",
+    p: "They ask questions in their own words. The bot answers only from the approved plan, one step at a time. It asks before telling anyone, unless it's an emergency.",
+    points: ["\"Show me\" opens a step-by-step 3D guide", "Caregiver-only notes stay hidden", "Never gives new medical advice"],
   },
 };
 

@@ -3,11 +3,12 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const faqs = [
-  ["Do caregivers need to install anything?", "No. Care-Bridge runs inside Telegram. Briefs and reminders arrive as chat messages, and the caregiver panel opens as a Telegram Mini App."],
-  ["Can the AI change the care plan?", "No. The model drafts facts, questions and answers, and only the primary caregiver can approve them. It never approves a fact, messages the circle or judges anyone's health on its own."],
-  ["What happens when the plan changes?", "Editing a fact bumps its version. Anyone who has not seen the new version gets it at the top of their next brief, and the change shows up in the feed."],
-  ["Who sees what?", "Each fact has an audience. Caregiver-only facts are filtered out before the companion for the older adult ever sees anything."],
-  ["Does it replace medical advice?", "No. It repeats the approved care plan and points to the nurse line. It never offers new medical advice."],
+  ["Do caregivers need to install anything?", "No. It runs in Telegram. Briefs arrive as messages, and the caregiver view opens as a Mini App."],
+  ["Can the AI change the care plan?", "No. It drafts facts. Only the primary caregiver can approve them."],
+  ["What happens when the plan changes?", "The fact gets a new version. Anyone who hasn't seen it gets it first in their next brief, and the change is logged."],
+  ["Who sees what?", "Each fact has an audience. The older adult never sees caregiver-only notes."],
+  ["Where does the data live?", "On one computer at home. The AI models run there too, not in the cloud."],
+  ["Does it give medical advice?", "No. It repeats the approved plan and points to the nurse line, or 911 in an emergency."],
 ];
 
 export function Faq() {

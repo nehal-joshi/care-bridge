@@ -6,9 +6,9 @@ const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", axe
 const hanken = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-hanken" });
 
 export const metadata: Metadata = {
-  title: "Care-Bridge · the right person remembers the right thing",
+  title: "Care-Bridge · one care plan, every caregiver knows it",
   description:
-    "One shared memory for everyone who cares for an older adult. Short briefs before every shift, a clear view of who knows what, and a calm companion for the person being cared for, all inside Telegram.",
+    "One approved care plan for an older adult, remembered by the whole circle. One-minute briefs before each shift, an alert when only one person knows a warning sign, and a simple chat for the person being cared for. All in Telegram.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
