@@ -5,3 +5,6 @@ local.env
 
 # macOS
 .DS_Store
+
+# Runtime data (re-seeded automatically on first run)
+app/carebridge.db
