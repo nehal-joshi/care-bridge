@@ -201,3 +201,52 @@ def test_photo_upload_in_mini_app(monkeypatch):
     monkeypatch.setattr(llm, "read_health_record", lambda *a, **k: {**FAKE_CBC, "date": "07 Oct 2026"})
     r = client.post("/api/documents", files={"file": ("cbc2.png", PNG + b"2", "image/png")}, headers=PRIYA).json()
     assert r["record_status"] == "saved" and r["record"]["record_date"] == "07 Oct 2026"
+
+
+def test_ruth_gets_a_guide_without_a_tool_call(monkeypatch):
+    from app import llm, main, telegram
+    sent = []
+    monkeypatch.setattr(telegram, "send_message", lambda chat, text, button=None, path="/": sent.append((chat, button, path)) or {"ok": True, "button": True})
+    monkeypatch.setattr(llm, "analyze_message", lambda *a, **k: {
+        "fact_id": "weigh_daily", "asks_for_person": False, "feeling_unwell": False, "emergency": False,
+        "wants_to_be_shown": True, "summary": "Ruth asked how to weigh herself."})
+    main.conn.execute("DELETE FROM events WHERE type = 'explainer_sent'")
+    main.conn.commit()
+    ctx = client.post("/api/internal/context", json={"sender_id": "4242", "message": "How do I weigh myself? Show me"},
+                      headers={"X-Internal-Secret": INTERNAL_SECRET}).json()
+    assert any(b == "Show me" and p.startswith("/explain/?id=exp_weigh_daily") for _, b, p in sent)
+    assert "Show me" in " ".join(ctx["actions"])
+
+
+def test_caregivers_can_list_preview_and_send_guides(monkeypatch):
+    from app import telegram
+    monkeypatch.setattr(telegram, "send_message", lambda *a, **k: {"ok": True, "button": True})
+    guides = client.get("/api/explainers", headers=MARCUS).json()
+    assert {g["fact_id"] for g in guides} >= {"weight_rule", "walker_brakes"}
+    before = len([e for e in client.get("/api/changes", headers=PRIYA).json() if e["type"] == "explainer_done"])
+    client.post(f"/api/explainers/{guides[0]['id']}/done", headers=MARCUS)  # a caregiver preview
+    after = len([e for e in client.get("/api/changes", headers=PRIYA).json() if e["type"] == "explainer_done"])
+    assert after == before
+    assert client.post("/api/explainers/send/walker_brakes", headers=MARCUS).json()["ok"] is True
+
+
+def test_yes_show_me_follows_up_on_the_last_topic(monkeypatch):
+    from app import llm, main, telegram
+    sent = []
+    monkeypatch.setattr(telegram, "send_message", lambda chat, text, button=None, path="/": sent.append(path) or {"ok": True, "button": True})
+    replies = iter([
+        {"fact_id": "walker_brakes", "asks_for_person": False, "feeling_unwell": False, "emergency": False,
+         "wants_to_be_shown": False, "summary": ""},
+        {"fact_id": None, "asks_for_person": False, "feeling_unwell": False, "emergency": False,
+         "wants_to_be_shown": True, "summary": ""},
+    ])
+    monkeypatch.setattr(llm, "analyze_message", lambda *a, **k: next(replies))
+    main.conn.execute("DELETE FROM events WHERE type = 'explainer_sent'")
+    main.conn.execute("INSERT INTO events (person_id, type, actor, fact_id, details, created_at) VALUES "
+                      "('ruth', 'explainer_sent', 'ruth', 'walker_brakes', '{}', ?)", (main.iso(main.now()),))
+    main.conn.commit()
+    h = {"X-Internal-Secret": INTERNAL_SECRET}
+    client.post("/api/internal/context", json={"sender_id": "4242", "message": "about my walker"}, headers=h)
+    assert sent == []  # sent recently, so no repeat without being asked
+    client.post("/api/internal/context", json={"sender_id": "4242", "message": "yes please show me"}, headers=h)
+    assert sent and sent[0].startswith("/explain/?id=exp_walker_brakes")

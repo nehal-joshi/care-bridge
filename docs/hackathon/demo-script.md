@@ -73,7 +73,7 @@ It takes up to a minute; come back to it in step 5.
 
 - **Amey** (as Ruth): "My ankles look puffy today. What was I supposed to do?"
 - The bot answers from her approved care plan: weigh herself, call the heart-failure nurse if she's up more than 3 lb, with the number. It offers to show her.
-- **Amey:** "Yes, show me." A **Show me** button arrives; the 3D guide walks her through the weigh-in, one large step at a time.
+- A **Show me** button arrives in her chat (the backend sends it with the answer). **Amey** taps it; the 3D guide walks her through the weigh-in, one large step at a time. If it doesn't arrive, Amey says "Yes, show me."
 - **Amey:** "I'm not feeling well. Please tell Priya."
 - All three caregiver phones buzz: "Ruth asked for help…". **Abhishree** shows Changes: "Ruth in chat · Asked for someone · Feeling unwell."
 - **Narrator:** "Ruth asked, so that's her consent. If she hadn't asked, the bot would have asked her first. And Ruth never sees caregiver-only notes, like the pudding trick for her evening pills."
@@ -97,7 +97,7 @@ It takes up to a minute; come back to it in step 5.
 |---|---|
 | The lab-report confirmation hasn't arrived by step 5 | Carry on and show it at the end; Gemma may be busy with another reply |
 | A reply takes more than 30 seconds | Narrate over it; Gemma is reloading. Avoid sending messages from two phones at once |
-| The "Show me" button doesn't come | Say "show me" again, or open `…/explain/?id=exp_weight_rule_v1` in Amey's browser |
+| The "Show me" button doesn't come | Amey says "show me how to weigh myself", or Abhishree taps **Ruth → Ruth's guides → Send to Ruth** |
 | The Mini App shows an error | Close and reopen it from the Care-Bridge button |
 | The PDF upload is slow | It wasn't cached: talk through the drafts while it finishes (about 30 seconds) |
 | Anything else | Play the backup screen recording |

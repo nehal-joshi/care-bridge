@@ -20,7 +20,7 @@ Gemma e4b drafts facts from the PDF in about 25–35 seconds; the result is cach
 ./scripts/start.sh
 ```
 
-Open `http://localhost:8000` in a browser. Outside Telegram, a "View as" menu switches between Priya, Marcus and Dev (development only). Ruth's guides are at `http://localhost:8000/explain/?id=exp_weight_rule_v1` and `?id=exp_walker_brakes_v1`.
+Open `http://localhost:8000` in a browser. Outside Telegram, a "View as" menu switches between Priya, Marcus and Dev (development only, when `CAREBRIDGE_DEV_AUTH=1`). Ruth's 3D guides are under **Ruth → Ruth's guides**: **Preview** opens one, **Send to Ruth** sends her a "Show me" button. The guide pages need a Telegram sign-in, so open them from the Mini App, not as a bare link.
 
 Run the tests:
 
@@ -113,6 +113,16 @@ The **Today** tab (the default for everyone) is Ruth's daily checklist: medicine
 - The chat assistant knows today's checklist, so "Did Ruth get her morning pills?" works. Ruth's chat sees only item names and status, not caregiver details or notes.
 
 The seed includes 9 schedule items and two weeks of history. A database created earlier gets them added automatically on start.
+
+## Ruth's 3D guides
+
+Ruth gets a guide in three ways, all sent by the backend rather than by Gemma choosing a tool:
+
+- She asks about a fact that has a guide (the weight rule, the daily weigh-in, the walker brakes). The "Show me" button is sent automatically, at most once every 6 hours per guide.
+- She asks to be shown ("show me how to weigh myself", or "yes, show me" after talking about a topic). The button is sent every time.
+- A caregiver taps **Send to Ruth** under **Ruth → Ruth's guides**. Caregivers can also **Preview** a guide there.
+
+When Ruth finishes a guide, it shows in Changes.
 
 ## Health records from photos
 

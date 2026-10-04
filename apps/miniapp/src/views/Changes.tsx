@@ -45,6 +45,8 @@ function describe(e: Event): { icon: string; title: string; body?: string; befor
     case 'record_added':
       return { icon: '✚', title: `${e.actor} added a health record: ${e.details.title} (${e.details.date})`,
                body: `${e.details.flagged} of ${e.details.results} results out of range. ${e.details.summary ?? ''}` }
+    case 'explainer_sent':
+      return { icon: '▶', title: `Guide sent to Ruth: ${e.details.title}${e.actor && e.actor !== 'Ruth' ? ` (by ${e.actor})` : ''}` }
     case 'older_adult_signal':
       return { icon: '!', title: 'Ruth needed help with her care plan', body: String(e.details.summary ?? '') }
     case 'responsibility_shift':

@@ -217,3 +217,7 @@ button.link.danger { color: var(--red); }
 .record-all table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .record-all th, .record-all td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
 .record-all tr.out td { color: var(--red); font-weight: 600; }
+
+.guide { flex-wrap: wrap; }
+.block { display: block; }
+.row.tight { margin-top: 0; gap: 6px; flex-wrap: nowrap; }

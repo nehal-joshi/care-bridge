@@ -50,8 +50,13 @@ function finish(spec: Spec) {
   countEl.textContent = ''
   stepEl.textContent = 'You did it.'
   hintEl.textContent = 'You can come back to this guide any time from the chat.'
-  nextBtn.textContent = 'Back to chat'
-  nextBtn.onclick = () => (tg ? tg.close() : history.back())
+  const preview = new URLSearchParams(location.search).get('preview') === '1'
+  nextBtn.textContent = preview ? 'Back to Care-Bridge' : 'Back to chat'
+  nextBtn.onclick = () => {
+    if (preview) location.href = `/?tab=circle${location.hash}`
+    else if (tg) tg.close()
+    else history.back()
+  }
   tg?.HapticFeedback?.notificationOccurred('success')
   api(`/api/explainers/${spec.id}/done`, { method: 'POST' }).catch(() => {})
 }

@@ -622,6 +622,62 @@ def build_explainer(fact: dict) -> dict:
     return row(conn.execute("SELECT * FROM explainers WHERE id = ?", (exp_id,)).fetchone())
 
 
+EXPLAINER_RESEND_HOURS = 6
+_LAST_RUTH_FACT: dict[str, tuple[str, float]] = {}  # member id -> (fact id, time), for "yes, show me" follow-ups
+
+
+def send_explainer(fact: dict, sent_by: dict) -> dict:
+    """Send Ruth a "Show me" button for a fact's guide. Python sends it; the model only fills in the steps."""
+    ruth = row(conn.execute("SELECT * FROM members WHERE role = 'older_adult' LIMIT 1").fetchone())
+    if not ruth or not ruth["telegram_id"]:
+        return {"ok": False, "error": "Ruth isn't connected to Telegram"}
+    if not fact["explainer_template"] or fact["audience"] != "everyone":
+        return {"ok": False, "error": "No guide for this fact"}
+    exp = build_explainer(fact)
+    spec = json.loads(exp["spec"])
+    result = telegram.send_message(ruth["telegram_id"], f"Here's a short guide: {spec['title']}. Tap the button to start.",
+                                   "Show me", f"/explain/?id={exp['id']}")
+    if result["ok"]:
+        with conn:
+            log_event(conn, ruth["person_id"], "explainer_sent", sent_by["id"], fact["id"], {"title": spec["title"]})
+    return {"ok": result["ok"], "explainer_id": exp["id"], "title": spec["title"], "button": result.get("button"),
+            "error": result.get("error")}
+
+
+def _explainer_sent_recently(fact_id: str) -> bool:
+    r = conn.execute("SELECT created_at FROM events WHERE type = 'explainer_sent' AND fact_id = ? ORDER BY id DESC LIMIT 1",
+                     (fact_id,)).fetchone()
+    return bool(r and r["created_at"] >= iso(now() - timedelta(hours=EXPLAINER_RESEND_HOURS)))
+
+
+@app.get("/api/explainers")
+def list_explainers(member: dict = Depends(current_member)):
+    """Guides caregivers can preview and send to Ruth."""
+    require_caregiver(member)
+    out = []
+    for f in rows(conn.execute("SELECT * FROM facts WHERE status = 'approved' AND audience = 'everyone'"
+                               " AND explainer_template IS NOT NULL ORDER BY rowid")):
+        exp = build_explainer(f)
+        spec = json.loads(exp["spec"])
+        last = conn.execute("SELECT created_at FROM events WHERE type = 'explainer_sent' AND fact_id = ? ORDER BY id DESC"
+                            " LIMIT 1", (f["id"],)).fetchone()
+        done = conn.execute("SELECT created_at FROM events WHERE type = 'explainer_done' AND fact_id = ? ORDER BY id DESC"
+                            " LIMIT 1", (f["id"],)).fetchone()
+        out.append({"id": exp["id"], "fact_id": f["id"], "fact_text": f["text"], "title": spec["title"],
+                    "steps": len(spec["steps"]), "last_sent": last["created_at"] if last else None,
+                    "last_done": done["created_at"] if done else None})
+    return out
+
+
+@app.post("/api/explainers/send/{fact_id}")
+def send_explainer_route(fact_id: str, member: dict = Depends(current_member)):
+    require_caregiver(member)
+    result = send_explainer(get_fact(fact_id), member)
+    if not result["ok"]:
+        raise HTTPException(400, result.get("error") or "Couldn't send the guide")
+    return result
+
+
 @app.get("/api/explainers/{exp_id}")
 def get_explainer(exp_id: str, member: dict = Depends(current_member)):
     exp = row(conn.execute("SELECT * FROM explainers WHERE id = ?", (exp_id,)).fetchone())
@@ -636,9 +692,10 @@ def explainer_done(exp_id: str, member: dict = Depends(current_member)):
     if not exp:
         raise HTTPException(404, "Explainer not found")
     spec = json.loads(exp["spec"])
-    with conn:
-        log_event(conn, member["person_id"], "explainer_done", member["id"], exp["fact_id"],
-                  {"title": spec.get("title")})
+    if member["role"] == "older_adult":  # caregivers previewing a guide don't count
+        with conn:
+            log_event(conn, member["person_id"], "explainer_done", member["id"], exp["fact_id"],
+                      {"title": spec.get("title")})
     return {"ok": True}
 
 
@@ -1049,8 +1106,9 @@ EVENT_LABELS = {
     "schedule_removed": "Removed from the daily schedule",
     "log_refused": "Refused",
     "record_added": "Health record added",
+    "explainer_sent": "Guide sent to Ruth",
 }
-RUTH_EVENT_TYPES = ("older_adult_message", "circle_notified", "explainer_done")
+RUTH_EVENT_TYPES = ("older_adult_message", "circle_notified", "explainer_done", "explainer_sent")
 NOTIFY_COOLDOWN_MINUTES = 10
 
 
@@ -1182,7 +1240,14 @@ def internal_context(body: ContextIn):
     person = _person()
     audience = ("everyone",) if is_ruth else ("everyone", "caregivers")
     facts = [f for f in rows(conn.execute("SELECT * FROM facts WHERE status = 'approved'")) if f["audience"] in audience]
-    options = [{"id": f["id"], "label": f["text"][:140]} for f in facts]
+    guide_titles = {}
+    if is_ruth:
+        for f in facts:
+            if f["explainer_template"]:
+                spec = fallback_spec(f["explainer_template"]) or {}
+                guide_titles[f["id"]] = spec.get("title", "")
+    options = [{"id": f["id"], "label": f["text"][:140] + (f" (guide: {guide_titles[f['id']]})" if guide_titles.get(f["id"]) else "")}
+               for f in facts]
     message = body.message.strip()
 
     hints = laya.read_message(message, options) if message else None  # photo-only messages skip analysis
@@ -1223,6 +1288,18 @@ def internal_context(body: ContextIn):
         elif unwell:
             actions.append("Ruth says she isn't feeling well; this is now noted for her circle in Care-Bridge. "
                            "Check her care plan for what applies, then ask if she'd like you to let Priya know.")
+        if not fact and analysis.get("wants_to_be_shown"):
+            # "Yes, show me" refers back to what they were just talking about.
+            last = _LAST_RUTH_FACT.get(member["id"])
+            if last and time.time() - last[1] < 1800:
+                fact = next((f for f in facts if f["id"] == last[0]), None)
+        if fact and fact["explainer_template"] and not emergency and (
+                analysis.get("wants_to_be_shown") or not _explainer_sent_recently(fact["id"])):
+            sent = send_explainer(fact, member)
+            if sent["ok"]:
+                actions.append(f"Care-Bridge has just sent Ruth a \"Show me\" button in this chat for a short guide: "
+                               f"\"{sent['title']}\". Tell her she can tap it to see the steps. "
+                               "Do not call carebridge_show_explainer.")
 
     if not is_ruth and analysis and analysis.get("shares_new_care_info") and analysis.get("new_fact_text", "").strip():
         text = analysis["new_fact_text"].strip()
@@ -1243,6 +1320,8 @@ def internal_context(body: ContextIn):
             actions.append(f"Care-Bridge saved this as a draft fact for {who} approval in the Handbook tab: \"{text}\". "
                            "Tell them so.")
 
+    if is_ruth and fact:
+        _LAST_RUTH_FACT[member["id"]] = (fact["id"], time.time())
     lines = [RUTH_RULES if is_ruth else CAREGIVER_RULES, ""]
     if not is_ruth:
         lines.append(f"You are talking to {member['name']} ({member['relation']}, role: {member['role']}).")
@@ -1296,18 +1375,11 @@ class ExplainerIn(BaseModel):
 
 @app.post("/api/internal/explainer", dependencies=[Depends(internal_only)])
 def internal_explainer(body: ExplainerIn):
-    """E8: build (or reuse) the explainer for a fact and send Ruth a "Show me" button."""
+    """E8: the carebridge_show_explainer tool. The backend also sends guides on its own (see internal_context)."""
     member = _member_by_sender(body.sender_id)
     if not member:
         return {"ok": False, "error": "Unknown sender"}
-    fact = get_fact(body.fact_id)
-    if not fact["explainer_template"] or fact["audience"] != "everyone":
-        return {"ok": False, "error": "No explainer for this fact"}
-    exp = build_explainer(fact)
-    spec = json.loads(exp["spec"])
-    result = telegram.send_message(member["telegram_id"], f"Here's a short guide: {spec['title']}", "Show me",
-                                   f"/explain/?id={exp['id']}")
-    return {"ok": result["ok"], "explainer_id": exp["id"], "button": result.get("button"), "error": result.get("error")}
+    return send_explainer(get_fact(body.fact_id), member)
 
 
 # ---------- static apps ----------

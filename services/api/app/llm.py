@@ -169,6 +169,7 @@ def analyze_message(role: str, message: str, facts: list[dict], conditions: list
             "asks_for_person": {"type": "boolean"},
             "feeling_unwell": {"type": "boolean"},
             "emergency": {"type": "boolean"},
+            "wants_to_be_shown": {"type": "boolean"},
             "summary": {"type": "string"},
         }
         system = (
@@ -180,6 +181,7 @@ def analyze_message(role: str, message: str, facts: list[dict], conditions: list
             "someone to help her.\n"
             "- feeling_unwell: true if she says she feels ill, unwell, in pain, dizzy, scared or needs help.\n"
             "- emergency: true only for chest pain, fainting, a fall, severe trouble breathing or anything life-threatening.\n"
+            "- wants_to_be_shown: true if she asks to be shown, asks how to do something, or says yes to a guide.\n"
             "- summary: one short sentence in the third person saying what Ruth said, for her family to read."
         )
     else:

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Guides from './Guides'
 import HealthRecords from './HealthRecords'
 import { api, haptic, post, type Me } from '../api'
 
@@ -41,6 +42,8 @@ export default function Circle({ me, onReset }: { me: Me; onReset: () => void })
       </section>
 
       <HealthRecords />
+
+      <Guides />
 
       <section>
         <h3>Care circle</h3>
