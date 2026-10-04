@@ -98,7 +98,7 @@ export default function Home() {
 
         <Reveal delay={0.2} className="relative lg:col-span-5">
           <div className="relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-t-[999px] rounded-b-[2.5rem] bg-teal ring-1 ring-border">
-            <Image src="/images/mom-portrait.jpg" alt="A smiling older woman at home" fill priority sizes="(min-width:1024px) 420px, 90vw" className="object-cover object-[56%_15%]" />
+            <Image src="/images/care-duo.jpg" alt="A caregiver and an older woman looking at a phone together on a park bench" fill priority sizes="(min-width:1024px) 420px, 90vw" className="object-cover object-[28%_70%]" />
           </div>
           <div className="floaty absolute -left-4 bottom-16 w-60 rounded-2xl bg-paper p-4 shadow-[0_20px_40px_-15px_rgba(14,47,46,.4)] ring-1 ring-border sm:-left-10">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal"><BellRing className="size-4" aria-hidden /> Before your shift</div>
@@ -172,7 +172,7 @@ export default function Home() {
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sun">How a missed detail happens</p>
                 <h3 className="font-display mt-4 text-3xl font-medium leading-tight sm:text-5xl">The information was there. It just never reached the person who needed it.</h3>
                 <div className="relative mt-8 aspect-[16/10] overflow-hidden rounded-2xl">
-                  <Image src="/images/mom-phone.jpg" alt="An older woman smiling while looking at her phone on the sofa" fill sizes="(min-width:1024px) 440px, 90vw" className="object-cover" />
+                  <Image src="/images/care-kitchen.jpg" alt="A caregiver and an older woman going through a phone together at the kitchen table" fill sizes="(min-width:1024px) 440px, 90vw" className="object-cover" />
                 </div>
               </div>
               <ol className="relative space-y-6 lg:col-span-7 lg:pl-6">
@@ -239,7 +239,7 @@ export default function Home() {
               <div className="mt-8"><TelegramLink variant="coral" label="Open Care-Bridge" /></div>
             </div>
             <div className="relative min-h-72 lg:min-h-full">
-              <Image src="/images/mom-portrait.jpg" alt="" fill sizes="(min-width:1024px) 560px, 100vw" className="object-cover object-[50%_25%]" />
+              <Image src="/images/care-duo.jpg" alt="" fill sizes="(min-width:1024px) 560px, 100vw" className="object-cover object-[22%_70%]" />
               <div className="absolute inset-0 bg-gradient-to-r from-foreground via-foreground/10 to-transparent max-lg:bg-gradient-to-t" />
             </div>
           </div>
@@ -249,7 +249,7 @@ export default function Home() {
       <Separator className="mx-auto max-w-6xl" />
       <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-10 text-sm text-muted-foreground sm:flex-row md:px-8">
         <Logo />
-        <p>Hackathon demo. All people and data shown are fictional. Photos from Unsplash.</p>
+        <p>Hackathon demo. All people and data shown are fictional. Photos from Pexels.</p>
       </footer>
     </main>
   );
