@@ -13,3 +13,6 @@ dist/
 __pycache__/
 .pytest_cache/
 services/api/data/
+
+# Runtime data (re-seeded automatically on first run)
+app/carebridge.db
