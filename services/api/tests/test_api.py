@@ -250,3 +250,34 @@ def test_yes_show_me_follows_up_on_the_last_topic(monkeypatch):
     assert sent == []  # sent recently, so no repeat without being asked
     client.post("/api/internal/context", json={"sender_id": "4242", "message": "yes please show me"}, headers=h)
     assert sent and sent[0].startswith("/explain/?id=exp_walker_brakes")
+
+
+PHONE_PLAN = {"suitable": True, "reason": "", "title": "Call Priya",
+              "objects": [{"id": "phone", "kind": "phone", "label": "phone"}, {"id": "phone2", "kind": "phone", "label": "x"},
+                          {"id": "rocket", "kind": "rocket", "label": "Rocket"}],
+              "phone_buttons": [{"id": "phone_app", "label": "Phone", "color": "blue"},
+                                {"id": "call", "label": "call_now", "color": "green"}],
+              "steps": [{"text": "Tap the Phone button.", "focus": "phone_app", "action": "tap"},
+                        {"text": "Tap the green call_now button.", "focus": "nonexistent", "action": "tap"}]}
+
+
+def test_custom_guide_is_checked_listed_and_sent(monkeypatch):
+    from app import llm, telegram
+    monkeypatch.setattr(llm, "custom_guide", lambda *a, **k: PHONE_PLAN)
+    monkeypatch.setattr(telegram, "send_message", lambda *a, **k: {"ok": True, "button": True})
+    made = client.post("/api/explainers/custom", json={"topic": "using the phone to call Priya"}, headers=MARCUS).json()
+    spec = client.get(f"/api/explainers/{made['id']}", headers=PRIYA).json()
+    assert [o["kind"] for o in spec["objects"]] == ["phone"]          # duplicate phone and unknown kind dropped
+    assert spec["phone_buttons"][1]["label"] == "Call now"             # ids turned into readable labels
+    assert spec["steps"][1]["focus"] == "call" and "call_now" not in spec["steps"][1]["text"]
+    listed = [g for g in client.get("/api/explainers", headers=PRIYA).json() if g["id"] == made["id"]]
+    assert listed and listed[0]["custom"] is True
+    assert client.post(f"/api/explainers/{made['id']}/send", headers=PRIYA).json()["ok"] is True
+
+
+def test_unsuitable_guide_request_is_refused(monkeypatch):
+    from app import llm
+    monkeypatch.setattr(llm, "custom_guide", lambda *a, **k: {"suitable": False, "reason": "That is a medical decision.",
+                                                               "title": "", "objects": [], "phone_buttons": [], "steps": []})
+    r = client.post("/api/explainers/custom", json={"topic": "should I double my pills"}, headers=PRIYA)
+    assert r.status_code == 400 and "medical" in r.json()["detail"]

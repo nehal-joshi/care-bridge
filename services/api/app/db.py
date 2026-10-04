@@ -80,7 +80,8 @@ def connect() -> sqlite3.Connection:
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Add columns introduced after the first demo database was created. Existing data is kept."""
-    for table, column in (("persons", "details"), ("members", "about")):
+    for table, column in (("persons", "details"), ("members", "about"), ("explainers", "topic"),
+                          ("explainers", "created_by")):
         names = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if column not in names:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")

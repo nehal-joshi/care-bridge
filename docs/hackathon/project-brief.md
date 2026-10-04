@@ -92,10 +92,10 @@ Gemma 4 (e4b) · Ollama · Laya (Unsloth Decision API) · Hermes Agent · Py-FSR
 
 ## Team
 
-- Nehal Joshi: backend, models and Hermes
-- Abhishree: product and testing (Priya)
-- Kush Anchalia: prototype and testing (Dev)
-- Amey ([perfect7613](https://github.com/perfect7613)): landing page and testing (Ruth)
+- Nehal Joshi ([@nehal-joshi](https://github.com/nehal-joshi))
+- Amey ([@perfect7613](https://github.com/perfect7613))
+- Kush Anchalia
+- Abhishree
 
 ## Links
 

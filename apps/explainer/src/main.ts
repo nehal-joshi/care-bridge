@@ -4,7 +4,8 @@ import { TEMPLATES, type BuiltScene } from './scenes'
 import './style.css'
 
 type Step = { text: string; focus: string; action: 'tap' | 'watch' }
-type Spec = { id: string; template: string; title: string; steps: Step[]; fact_id: string }
+type Spec = { id: string; template: string; title: string; steps: Step[]; fact_id: string | null;
+  objects?: { id: string; kind: string; label: string }[]; phone_buttons?: { id: string; label: string; color: string }[] }
 
 type TelegramWebApp = {
   initData: string
@@ -144,8 +145,9 @@ function runScene(spec: Spec, built: BuiltScene) {
     const rect = canvas.getBoundingClientRect()
     const pointer = new THREE.Vector2(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1)
     raycaster.setFromCamera(pointer, camera)
-    const hit = raycaster.intersectObjects(scene.children, true).find(h => h.object.userData.objectId)
-    const id = hit?.object.userData.objectId
+    const hits = raycaster.intersectObjects(scene.children, true)
+    const hit = hits.find(h => h.object.userData.objectId || built.hitId?.(h))
+    const id = hit ? (built.hitId ? built.hitId(hit) : hit.object.userData.objectId) : undefined
     if (id === step.focus) advance()
     else nudge = 1 // A wrong tap is never "wrong": the right object just glows brighter for a moment.
   })
@@ -195,7 +197,7 @@ async function start() {
   const build = TEMPLATES[spec.template]
   if (!build || !webglAvailable()) return runCards(spec)
   try {
-    runScene(spec, build())
+    runScene(spec, build(spec))
   } catch {
     runCards(spec)
   }

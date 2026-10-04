@@ -47,6 +47,8 @@ function describe(e: Event): { icon: string; title: string; body?: string; befor
                body: `${e.details.flagged} of ${e.details.results} results out of range. ${e.details.summary ?? ''}` }
     case 'explainer_sent':
       return { icon: '▶', title: `Guide sent to Ruth: ${e.details.title}${e.actor && e.actor !== 'Ruth' ? ` (by ${e.actor})` : ''}` }
+    case 'guide_created':
+      return { icon: '▶', title: `${e.actor} made a guide: ${e.details.title}`, body: String(e.details.topic ?? '') }
     case 'older_adult_signal':
       return { icon: '!', title: 'Ruth needed help with her care plan', body: String(e.details.summary ?? '') }
     case 'responsibility_shift':

@@ -31,12 +31,13 @@ GUIDE = """Fields:
 - audience: "everyone" if Ruth herself should also know it; "caregivers" if it is only for the people caring for her."""
 
 
-def chat_json(system: str, user: str, schema: dict, timeout: float = 180.0, images: list[str] | None = None) -> dict:
+def chat_json(system: str, user: str, schema: dict, timeout: float = 180.0, images: list[str] | None = None,
+              temperature: float = 0) -> dict:
     body = {
         "model": settings.model,
         "stream": False,
         "format": schema,
-        "options": {"temperature": 0},
+        "options": {"temperature": temperature, "num_predict": 3000},  # stops a run-away generation instead of hanging
         "keep_alive": -1,
         "think": False,
         "messages": [{"role": "system", "content": system},
@@ -170,6 +171,7 @@ def analyze_message(role: str, message: str, facts: list[dict], conditions: list
             "feeling_unwell": {"type": "boolean"},
             "emergency": {"type": "boolean"},
             "wants_to_be_shown": {"type": "boolean"},
+            "guide_topic": {"type": "string"},
             "summary": {"type": "string"},
         }
         system = (
@@ -182,6 +184,7 @@ def analyze_message(role: str, message: str, facts: list[dict], conditions: list
             "- feeling_unwell: true if she says she feels ill, unwell, in pain, dizzy, scared or needs help.\n"
             "- emergency: true only for chest pain, fainting, a fall, severe trouble breathing or anything life-threatening.\n"
             "- wants_to_be_shown: true if she asks to be shown, asks how to do something, or says yes to a guide.\n"
+            "- guide_topic: if she wants to be shown something, the task in a few words (e.g. \"call Priya on the phone\"), else \"\".\n"
             "- summary: one short sentence in the third person saying what Ruth said, for her family to read."
         )
     else:
@@ -190,6 +193,8 @@ def analyze_message(role: str, message: str, facts: list[dict], conditions: list
             "fact_id": {"type": "string", "enum": ids},
             "shares_new_care_info": {"type": "boolean"},
             "new_fact_text": {"type": "string"},
+            "wants_guide": {"type": "boolean"},
+            "guide_topic": {"type": "string"},
         }
         system = (
             "You read a message from a caregiver for Ruth, an older adult, to the Care-Bridge assistant. "
@@ -198,7 +203,9 @@ def analyze_message(role: str, message: str, facts: list[dict], conditions: list
             "- shares_new_care_info: true only if the caregiver states new information about Ruth's care that should be "
             "remembered (a routine, preference, medicine, symptom to watch, instruction). Questions are false.\n"
             "- new_fact_text: if true, the NEW information as one plain sentence about Ruth, written from the caregiver's "
-            "message. Never copy a handbook fact; if it changes one, write the new version. Otherwise an empty string."
+            "message. Never copy a handbook fact; if it changes one, write the new version. Otherwise an empty string.\n"
+            "- wants_guide: true if they ask for a visual, 3D or step-by-step guide, visualization or demo of a task.\n"
+            "- guide_topic: if wants_guide, the task in a few words (e.g. \"using a phone to call Priya\"), else \"\"."
         )
     schema = {"type": "object", "properties": props, "required": list(props)}
     result = chat_json(system, f"Care facts:\n{listing}\n\nMessage: {message}", schema, timeout=timeout)
@@ -232,3 +239,47 @@ def read_health_record(image_b64: str, caption: str = "") -> dict:
               "summary: one plain sentence naming only what is out of range, with no medical advice.")
     return chat_json(system, f"Read this document.{' Caregiver note: ' + caption if caption else ''}", schema,
                      timeout=300.0, images=[image_b64])
+
+
+KIT_KINDS = ["phone", "chair", "table", "bed", "cup", "kettle", "pill_box", "door", "keys", "glasses", "scale",
+             "walker", "tv_remote", "clock", "lamp", "plate"]
+BUTTON_COLORS = ["green", "red", "blue", "grey"]
+
+
+def custom_guide(request: str, for_ruth: bool, related_fact: str | None, people: list[str]) -> dict:
+    """Plan a short 3D guide from a fixed kit of objects. The renderer draws it; nothing here is code."""
+    obj = {"type": "object", "properties": {"id": {"type": "string"}, "kind": {"type": "string", "enum": KIT_KINDS},
+                                            "label": {"type": "string"}}, "required": ["id", "kind", "label"]}
+    button = {"type": "object", "properties": {"id": {"type": "string"}, "label": {"type": "string"},
+                                               "color": {"type": "string", "enum": BUTTON_COLORS}},
+              "required": ["id", "label", "color"]}
+    step = {"type": "object", "properties": {"text": {"type": "string"}, "focus": {"type": "string"},
+                                             "action": {"type": "string", "enum": ["tap", "watch"]}},
+            "required": ["text", "focus", "action"]}
+    schema = {"type": "object",
+              "properties": {"suitable": {"type": "boolean"}, "reason": {"type": "string"}, "title": {"type": "string"},
+                             "objects": {"type": "array", "items": obj, "minItems": 1, "maxItems": 5},
+                             "phone_buttons": {"type": "array", "items": button, "maxItems": 6},
+                             "steps": {"type": "array", "items": step, "minItems": 2, "maxItems": 5}},
+              "required": ["suitable", "reason", "title", "objects", "phone_buttons", "steps"]}
+    who = "Ruth, an older adult with early memory loss" if for_ruth else "Ruth, an older adult, prepared by her caregiver"
+    system = (
+        f"You plan a very short step-by-step 3D guide for {who}. A fixed renderer draws it from a kit of objects: "
+        f"{', '.join(KIT_KINDS)}. A phone object can show up to 6 large labelled buttons on its screen (phone_buttons). "
+        "suitable: true only for practical everyday tasks with these objects (using a phone, making tea, taking pills "
+        "from a pill box, finding keys, standing up). false for medical decisions, diagnoses or anything the kit cannot show.\n"
+        "Rules: 2 to 5 steps. Each step is one calm sentence under 14 words, speaking to her as \"you\". Each step's "
+        "focus is the id of one object or one phone button. Use \"tap\" when she should touch it, otherwise \"watch\". "
+        "Give every object and button a short lowercase id like phone or call_priya. Title under 6 words. "
+        "Use each kind at most once. Labels and step text are plain words a person reads, never ids. "
+        "Example for calling someone: objects [phone], phone_buttons [{id: phone_app, label: Phone, color: blue}, "
+        "{id: priya, label: Priya, color: grey}, {id: call, label: Call, color: green}], steps: tap Phone, tap Priya, "
+        "tap the green Call button, wait for her to answer. "
+        "Never add medical advice. If a care fact is given, follow it exactly and keep its numbers."
+        + (f" People she may call: {', '.join(people)}." if people else "")
+    )
+    user = f"Request: {request}" + (f"\nRelated care fact: {related_fact}" if related_fact else "")
+    try:
+        return chat_json(system, user, schema, timeout=75.0)
+    except json.JSONDecodeError:  # the model looped and hit the length cap; a little randomness usually breaks the loop
+        return chat_json(system, user, schema, timeout=75.0, temperature=0.4)

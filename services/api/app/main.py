@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import secrets
+import threading
 import time
 from datetime import timedelta
 from pathlib import Path
@@ -650,6 +651,132 @@ def _explainer_sent_recently(fact_id: str) -> bool:
     return bool(r and r["created_at"] >= iso(now() - timedelta(hours=EXPLAINER_RESEND_HOURS)))
 
 
+def _slug(value: str, fallback: str) -> str:
+    slug = re.sub(r"[^a-z0-9_]+", "_", (value or "").lower()).strip("_")[:24]
+    return slug or fallback
+
+
+def _readable(value: str) -> str:
+    text = str(value).replace("_", " ").strip()
+    return text[:1].upper() + text[1:] if text else text
+
+
+def validate_kit_spec(raw: dict) -> dict | None:
+    """Check a custom guide plan against the renderer's kit. Returns a clean spec or None."""
+    objects, seen = [], set()
+    for o in raw.get("objects", [])[:5]:
+        if o.get("kind") not in llm.KIT_KINDS or any(x["kind"] == o["kind"] for x in objects):
+            continue  # unknown kind, or the same kind twice
+        oid = _slug(o.get("id"), o["kind"])
+        while oid in seen:
+            oid += "_2"
+        seen.add(oid)
+        objects.append({"id": oid, "kind": o["kind"], "label": _readable(o.get("label") or o["kind"])[:24]})
+    if not objects:
+        return None
+    buttons = []
+    if any(o["kind"] == "phone" for o in objects):
+        for b in raw.get("phone_buttons", [])[:6]:
+            bid = _slug(b.get("id"), "button")
+            if bid in seen:
+                bid += "_btn"
+            seen.add(bid)
+            buttons.append({"id": bid, "label": _readable(b.get("label") or "")[:18] or "Button",
+                            "color": b.get("color") if b.get("color") in llm.BUTTON_COLORS else "grey"})
+    ids = {o["id"] for o in objects} | {b["id"] for b in buttons}
+    steps = []
+    for st in raw.get("steps", [])[:5]:
+        text = re.sub(r"(\w)_(\w)", r"\1 \2", str(st.get("text", "")).strip())  # never show ids like call_now
+        if not text or len(text) > 120:
+            continue
+        focus = _slug(st.get("focus"), "")
+        if focus not in ids:  # a removed duplicate or a typo: match by the words in the step, else the main object
+            words = text.lower()
+            focus = next((x["id"] for x in buttons + objects if x["label"].lower() in words),
+                         buttons[0]["id"] if buttons else objects[0]["id"])
+        steps.append({"text": text, "focus": focus, "action": "tap" if st.get("action") == "tap" else "watch"})
+    if len(steps) < 2:
+        return None
+    return {"template": "kit", "title": str(raw.get("title") or "A quick guide").strip()[:40],
+            "objects": objects, "phone_buttons": buttons, "steps": steps}
+
+
+def create_custom_guide(topic: str, member: dict, fact: dict | None = None, for_ruth: bool = True) -> dict:
+    """Plan, check and save a guide for any everyday task."""
+    topic = topic.strip()[:200]
+    if len(topic) < 3:
+        return {"ok": False, "error": "Say what the guide should show"}
+    people = [m["name"] for m in caregivers()]
+    raw = llm.custom_guide(topic, for_ruth, fact["text"] if fact else None, people)
+    if not raw.get("suitable"):
+        return {"ok": False, "error": raw.get("reason") or "That isn't something a guide can show"}
+    spec = validate_kit_spec(raw)
+    if not spec:
+        return {"ok": False, "error": "Couldn't build a guide for that. Try describing the task differently."}
+    if fact:  # a guide about a care fact must keep the fact's numbers
+        numbers = set(re.findall(r"\d[\d-]*", fact["text"]))
+        if not all(n in " ".join(st["text"] for st in spec["steps"]) for n in numbers):
+            return {"ok": False, "error": "The guide left out part of the care fact"}
+    exp_id = f"exp_custom_{secrets.token_hex(4)}"
+    with conn:
+        conn.execute("INSERT INTO explainers (id, fact_id, fact_version, spec, created_at, topic, created_by)"
+                     " VALUES (?,?,?,?,?,?,?)",
+                     (exp_id, fact["id"] if fact else None, fact["version"] if fact else 0, json.dumps(spec),
+                      iso(now()), topic, member["id"]))
+        log_event(conn, member["person_id"], "guide_created", member["id"], fact["id"] if fact else None,
+                  {"title": spec["title"], "topic": topic})
+    return {"ok": True, "id": exp_id, "title": spec["title"], "steps": len(spec["steps"])}
+
+
+def send_guide(exp_id: str, to: dict, sent_by: dict) -> dict:
+    exp = row(conn.execute("SELECT * FROM explainers WHERE id = ?", (exp_id,)).fetchone())
+    if not exp or not to or not to["telegram_id"]:
+        return {"ok": False, "error": "Can't send that guide"}
+    spec = json.loads(exp["spec"])
+    who = "Here's a short guide" if to["role"] == "older_adult" else "Your guide is ready"
+    result = telegram.send_message(to["telegram_id"], f"{who}: {spec['title']}. Tap the button to start.", "Show me",
+                                   f"/explain/?id={exp_id}" + ("" if to["role"] == "older_adult" else "&preview=1"))
+    if result["ok"] and to["role"] == "older_adult":
+        with conn:
+            log_event(conn, to["person_id"], "explainer_sent", sent_by["id"], exp["fact_id"], {"title": spec["title"]})
+    return {"ok": result["ok"], "error": result.get("error"), "title": spec["title"]}
+
+
+def _make_and_send_guide(topic: str, member: dict, fact: dict | None) -> None:
+    """Runs in the background so the chat reply isn't held up by planning the guide."""
+    try:
+        made = create_custom_guide(topic, member, fact, for_ruth=True)
+        if made["ok"]:
+            send_guide(made["id"], member, member)
+        elif member["telegram_id"]:
+            telegram.send_message(member["telegram_id"], f"I couldn't make that guide: {made['error']}")
+    except Exception as exc:
+        log.warning("custom guide failed: %s", exc)
+
+
+class GuideIn(BaseModel):
+    topic: str
+
+
+@app.post("/api/explainers/custom")
+def create_guide_route(body: GuideIn, member: dict = Depends(current_member)):
+    require_caregiver(member)
+    made = create_custom_guide(body.topic, member)
+    if not made["ok"]:
+        raise HTTPException(400, made["error"])
+    return made
+
+
+@app.post("/api/explainers/{exp_id}/send")
+def send_guide_route(exp_id: str, member: dict = Depends(current_member)):
+    require_caregiver(member)
+    ruth = row(conn.execute("SELECT * FROM members WHERE role = 'older_adult' LIMIT 1").fetchone())
+    result = send_guide(exp_id, ruth, member)
+    if not result["ok"]:
+        raise HTTPException(400, result.get("error") or "Couldn't send the guide")
+    return result
+
+
 @app.get("/api/explainers")
 def list_explainers(member: dict = Depends(current_member)):
     """Guides caregivers can preview and send to Ruth."""
@@ -665,7 +792,13 @@ def list_explainers(member: dict = Depends(current_member)):
                             " LIMIT 1", (f["id"],)).fetchone()
         out.append({"id": exp["id"], "fact_id": f["id"], "fact_text": f["text"], "title": spec["title"],
                     "steps": len(spec["steps"]), "last_sent": last["created_at"] if last else None,
-                    "last_done": done["created_at"] if done else None})
+                    "last_done": done["created_at"] if done else None, "custom": False})
+    names = member_names()
+    for e in rows(conn.execute("SELECT * FROM explainers WHERE id LIKE 'exp_custom_%' ORDER BY created_at DESC")):
+        spec = json.loads(e["spec"])
+        out.append({"id": e["id"], "fact_id": e["fact_id"], "fact_text": f"Made for: {e['topic']}",
+                    "title": spec["title"], "steps": len(spec["steps"]), "last_sent": None, "last_done": None,
+                    "custom": True, "created_by": names.get(e["created_by"], e["created_by"])})
     return out
 
 
@@ -1109,6 +1242,7 @@ EVENT_LABELS = {
     "log_refused": "Refused",
     "record_added": "Health record added",
     "explainer_sent": "Guide sent to Ruth",
+    "guide_created": "Guide created",
 }
 RUTH_EVENT_TYPES = ("older_adult_message", "circle_notified", "explainer_done", "explainer_sent")
 NOTIFY_COOLDOWN_MINUTES = 10
@@ -1295,6 +1429,12 @@ def internal_context(body: ContextIn):
             last = _LAST_RUTH_FACT.get(member["id"])
             if last and time.time() - last[1] < 1800:
                 fact = next((f for f in facts if f["id"] == last[0]), None)
+        if analysis.get("wants_to_be_shown") and analysis.get("guide_topic", "").strip() and not emergency and not (
+                fact and fact["explainer_template"]):
+            threading.Thread(target=_make_and_send_guide, args=(analysis["guide_topic"], member, fact), daemon=True).start()
+            actions.append(f"Care-Bridge is making a short guide about \"{analysis['guide_topic']}\" and will send a "
+                           "\"Show me\" button in this chat in under a minute. Tell her it's coming. "
+                           "Do not call carebridge_show_explainer.")
         if fact and fact["explainer_template"] and not emergency and (
                 analysis.get("wants_to_be_shown") or not _explainer_sent_recently(fact["id"])):
             sent = send_explainer(fact, member)
@@ -1324,6 +1464,11 @@ def internal_context(body: ContextIn):
 
     if is_ruth and fact:
         _LAST_RUTH_FACT[member["id"]] = (fact["id"], time.time())
+    if not is_ruth and analysis and analysis.get("wants_guide") and analysis.get("guide_topic", "").strip():
+        threading.Thread(target=_make_and_send_guide, args=(analysis["guide_topic"], member, None), daemon=True).start()
+        actions.append(f"Care-Bridge is making a 3D guide about \"{analysis['guide_topic']}\". A \"Show me\" button "
+                       "will arrive in this chat in under a minute, and the guide will be listed under Ruth → Ruth's "
+                       "guides in the Mini App, where they can send it to Ruth. Tell them so.")
     lines = [RUTH_RULES if is_ruth else CAREGIVER_RULES, ""]
     if not is_ruth:
         lines.append(f"You are talking to {member['name']} ({member['relation']}, role: {member['role']}).")
