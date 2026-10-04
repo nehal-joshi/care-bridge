@@ -2,21 +2,40 @@
 
 **Goal:** a working demo in 4 hours. Caregivers use a Telegram Mini App; Ruth (the older adult) chats with the same bot through Hermes.
 **Scope:** [feature-list.md](feature-list.md). This plan builds every **Must** feature first, then one older-adult moment, then stretch features only if time is left.
+**Team decisions:** one model, `gemma4:e4b-mlx`; the Laya decision model running locally through Unsloth; ngrok for HTTPS.
 **Inputs:** ChatGPT's suggested architecture (reviewed below) and checks of the local machine.
 
-## What's already running
+## Stack and current state
 
-| Piece | State | Notes |
+| Piece | Role | State |
 |---|---|---|
-| Ollama | Running `gemma4:e4b-mlx` (9.5 GB) and `gemma4:12b-mlx` (7.7 GB) | The Mac has **18 GB RAM**, so only one model can stay loaded |
-| Hermes Agent | Gateway connected to Telegram and Ollama | `pre_llm_call` hook exists and receives `sender_id`; the `study-coach` plugin already uses it |
-| Py-FSRS | 6.3.2 in the prototype venv | `Scheduler.get_card_retrievability()` is available for the coverage view |
-| Telegram bot | Running through Hermes, `allow_all_users: false` | Teammates' accounts must be added to the allowlist |
-| Tunnel | **Not installed** | A Mini App needs a public HTTPS URL; install `cloudflared` first |
+| Gemma 4 e4b (`gemma4:e4b-mlx`, 9.5 GB) on Ollama | Hermes chat, PDF-to-draft-facts, question and answer drafting | Running. Hermes currently defaults to `gemma4:12b-mlx`; switch it to e4b. |
+| Laya decision model (Unsloth, multilingual, about 4 GB RAM) | Fast typed decisions: grading typed answers, picking the relevant fact for Ruth, reading her intent | **To install.** Served at `http://localhost:8888/v1/systemone`. |
+| Hermes Agent | Telegram chat for Ruth, `care-bridge` plugin | Running. `pre_llm_call` receives `sender_id` and can inject context. |
+| Py-FSRS 6.3.2 | Caregiver card scheduling, retrievability for coverage | In the prototype venv |
+| ngrok | Public HTTPS URL for the Mini App | **To install.** Use a free static domain so the URL never changes. |
+| Telegram bot | One bot for caregivers and Ruth | Running through Hermes with `allow_all_users: false`; add teammates to the allowlist |
+
+### Memory budget (18 GB Mac)
+
+| Process | Approximate RAM |
+|---|---|
+| Gemma e4b | 9.5 GB |
+| Laya multilingual on CPU | 4 GB (Unsloth's figure) |
+| Hermes, FastAPI, Vite, ngrok | 1–1.5 GB |
+| macOS and everything else | What remains (about 3 GB) |
+
+This fits only if nothing else heavy runs. On the demo Mac:
+- Keep `gemma4:12b-mlx` unloaded (`ollama stop gemma4:12b-mlx`).
+- Use phones for Telegram, not Telegram Desktop.
+- Close extra browser tabs.
+- Check Activity Monitor's memory pressure at checkpoint 1.
+
+**Fallback if memory pressure turns red:** run Unsloth with Laya on a teammate's laptop on the same Wi-Fi and point `LAYA_URL` at it. Laya is just an HTTP API, so nothing else changes.
 
 ## Review of ChatGPT's plan
 
-ChatGPT's plan gets the product boundaries right but adds too much new infrastructure for 4 hours. Keep its principles; cut most of its new components.
+ChatGPT's plan gets the product boundaries right but adds more infrastructure than 4 hours allows. Keep its principles; cut the components the demo doesn't need.
 
 | ChatGPT suggestion | Decision | Why |
 |---|---|---|
@@ -24,46 +43,46 @@ ChatGPT's plan gets the product boundaries right but adds too much new infrastru
 | One bot for both roles, role chosen by `sender_id` in a `pre_llm_call` plugin | **Keep** | Confirmed in the Hermes source: the hook receives `sender_id` and returns `{"context": ...}`. |
 | Gemma may read approved facts and suggest drafts, but never approve them | **Keep** | Matches the feature list (B3, B5). This rule is the safety story. |
 | FSRS stays separate from Hermes memory | **Keep** | Hermes memory is for conversation; FSRS measures caregiver recall. |
-| "AI prediction is not permission": ask Ruth before contacting family; a deterministic backend sends the message | **Keep** | Good for dignity and safety. Used in the older-adult moment below. |
-| Older-adult interaction rules (short sentences, one thing at a time, help them do it themselves, never expose caregiver-only facts) | **Keep** | Goes into the Hermes system prompt. See "Older adult interaction rules". |
+| "AI prediction is not permission": Laya and Gemma can suggest, but a person says yes and the backend acts | **Keep** | Laya never sends messages, approves facts or judges Ruth's health. |
+| Older-adult interaction rules (short sentences, one thing at a time, help them do it themselves, never expose caregiver-only facts) | **Keep** | Goes into the Hermes prompt. See "Older adult interaction rules". |
 | Mini App is the caregiver control panel, not a second chat app; no dashboard for the older adult | **Keep** | Agreed. |
 | ScenarioSpec principle: the model emits JSON and a fixed renderer draws it; never run model-written code | **Keep the principle** | Applies to every model output here: extraction returns JSON that the backend validates. |
-| Gemma on Modal for the demo, Ollama as fallback | **Change: Ollama only** | Ollama is already running. Modal adds deployment, auth and network risk with no demo benefit. |
-| Use both Gemma models | **Change: one model loaded** | 9.5 GB + 7.7 GB won't both fit in 18 GB alongside the browser, Node, Python and Hermes. Benchmark both in the first 15 minutes and keep one. The 12b file is the smaller one. |
-| Laya decision model (Unsloth, port 8888) for intent, "stuck" detection and grading | **Cut today** | Laya is real ([Unsloth decision models](https://unsloth.ai/docs/basics/api)), but it is another server competing for RAM. Up to five decisions per message add delay and failure points. A scripted demo moment doesn't need intent classification. Gemma with Ollama's JSON-schema output can grade answers (C4) if there is time. Revisit after the hackathon. |
-| Three graphs (care, capability, caregiver knowledge) | **Change: two SQLite tables, no capability graph** | The care "graph" is a facts table with categories; caregiver knowledge is the FSRS cards table. The capability graph (what Ruth can do on her phone) is a new feature outside today's scope. Don't call SQLite tables a graph in the pitch. |
-| Hermes cron delivers caregiver reminders | **Change: backend sends them directly** | Reminders are deterministic. Putting an LLM agent in that path adds delay and the risk of reworded messages. The backend calls the Bot API `sendMessage` with an "Open brief" button. A demo button triggers it on stage. |
+| Laya as a fast local decision model | **Keep (team decision), with a narrow job** | Three uses only: grading typed answers (C4), picking which approved fact answers Ruth's message, and reading her intent. Each call falls back cleanly if Laya is down. |
+| Gemma on Modal; mixing model sizes | **Change: `gemma4:e4b-mlx` on Ollama only** | Already running locally. One model leaves room for Laya in 18 GB. |
+| Three graphs (care, capability, caregiver knowledge) | **Change: SQLite tables, no capability graph** | The care "graph" is a facts table with categories; caregiver knowledge is the FSRS cards table. The capability graph (what Ruth can do on her phone) is outside today's scope. Don't call SQLite tables a graph in the pitch. |
+| Hermes cron delivers caregiver reminders | **Change: backend sends them directly** | Reminders are deterministic. Putting an LLM agent in that path adds delay and the risk of reworded messages. The backend calls the Bot API `sendMessage` with an "Open brief" button; a demo button triggers it on stage. |
 | Separate "Telegram bridge" service for Mini App buttons | **Change: fold into the backend; only send, never poll** | Only one process may poll a bot token, or Telegram returns 409 Conflict. Hermes polls; the backend only sends. Also set the bot's menu button to the Mini App in BotFather, which needs no code. |
-| Three.js scenario renderer and the threejs-game-skills pack in Hermes | **Cut; optional 2D version as last stretch (C8)** | A 3D scene in Telegram's mobile webview is a 4-hour project on its own. A 2D "tap the object" card driven by JSON gives most of the wow for a fraction of the time. |
+| Three.js scenario renderer and the threejs-game-skills pack | **Cut; optional 2D version as last stretch (C8)** | A 3D scene in Telegram's mobile webview is a 4-hour project on its own. |
 | HyperFrames videos | **Cut** | Not needed for the demo. |
-| Older-adult moment: Ruth asks how to send Rahul a photo | **Change the example** | Phone-skills help is a different problem from Care-Bridge's. Use a question answered from approved care facts instead. It ties directly to the handbook, coverage and the responsibility shift. |
-| Five plugin tools (`get_context`, `record_learning_event`, `record_task_progress`, `request_human_help`, `get_active_task`) | **Change: one tool** | Context arrives through `pre_llm_call`, so no "get context" tool is needed. Keep only `carebridge_notify_circle`, called after Ruth says yes. |
-| Pitch listing Hermes, Laya, Gemma, FSRS, Context Graph and Three.js | **Change** | Judges remember the problem and the demo. Lead with Ruth and Marcus; keep the tech to one slide. |
+| Older-adult moment: Ruth asks how to send Rahul a photo | **Change the example** | Phone-skills help is a different problem. Use a question answered from approved care facts; it ties to the handbook, coverage and the responsibility shift. |
+| Five plugin tools | **Change: one tool** | Context arrives through `pre_llm_call`. Keep only `carebridge_notify_circle`, called after Ruth says yes. |
+| Pitch listing every component | **Change** | Judges remember the problem and the demo. Lead with Ruth and Marcus; keep the tech to one slide. |
 
 ## Architecture for today
 
 ```text
-Caregiver phone                      Ruth's phone
-Telegram Mini App                    Telegram chat
-      │ HTTPS (cloudflared tunnel)         │
-      ▼                                    ▼
-FastAPI backend ◄─────── SQLite ──────► Hermes gateway (polls the bot)
- · Telegram initData auth                  │ pre_llm_call: care-bridge plugin
- · facts, cards, reviews, coverage         │   looks up role by sender_id,
- · Py-FSRS scheduling                      │   injects approved facts for Ruth
- · PDF → draft facts (Ollama, JSON)        │ tool: carebridge_notify_circle
- · sends reminders (Bot API, send only)    ▼
-      │                                 Gemma 4 (Ollama, one model)
-      └──────────── Ollama ◄───────────────┘
+Caregiver phone                         Ruth's phone
+Telegram Mini App                       Telegram chat
+      │ HTTPS (ngrok static domain)           │
+      ▼                                       ▼
+Vite (dev) or built app ──/api──► FastAPI ◄── Hermes gateway (only process polling the bot)
+                                   │  ▲         │ pre_llm_call → POST /api/internal/ruth-context
+                                   │  │         │ tool carebridge_notify_circle → POST /api/internal/notify
+                     ┌─────────────┼──┴───────┐ ▼
+                     ▼             ▼          Gemma 4 e4b (Ollama :11434)
+              SQLite + Py-FSRS   Laya (Unsloth :8888)
+                                   ▲
+              FastAPI also calls Gemma for PDF extraction
+              and the Bot API for reminders (send only)
 ```
 
-Everything runs on the demo Mac. Collaborators build the Mini App on their own machines against the tunnel URL. For the demo, FastAPI serves the built Mini App, so everything comes from one HTTPS origin.
+All Laya and database logic lives in FastAPI. The Hermes plugin stays thin: it calls the backend's internal endpoints and passes the result to Gemma. Everything runs on the demo Mac. Collaborators build the Mini App on their own machines against the ngrok URL.
 
 ### Repo layout
 
 ```text
 apps/miniapp/                 Vite + React + TypeScript Mini App
-services/api/                 FastAPI, SQLite, Py-FSRS, Ollama client
+services/api/                 FastAPI, SQLite, Py-FSRS, Ollama and Laya clients
 hermes/plugins/care-bridge/   plugin source; deploy to ~/.hermes/plugins/care-bridge
 demo/                         synthetic discharge PDF, seed data, demo script
 docs/                         product and hackathon docs
@@ -78,7 +97,7 @@ docs/                         product and hackathon docs
 | `invites` | code, person_id, role, created_by, used_by |
 | `facts` | id, person_id, text, question, answer, category, tier (`warning`, `routine`, `nice`), audience (list of roles or member ids), status (`draft`, `approved`), source, created_by, approved_by, version, updated_at |
 | `cards` | member_id, fact_id, fsrs_card_json, seen_version |
-| `reviews` | member_id, fact_id, rating, reviewed_at |
+| `reviews` | member_id, fact_id, rating, answer_text, laya_grade, reviewed_at |
 | `events` | id, person_id, type, actor, fact_id, details, created_at (feeds "What changed") |
 
 Rules:
@@ -87,9 +106,43 @@ Rules:
 - Use one scheduler per tier: 0.97 for warning signs, 0.9 for routine, 0.85 for nice-to-know (C5).
 - Every fact needs a question and answer for its card. Gemma drafts both during extraction or manual entry; the caregiver can edit them before approving.
 
+### Laya: the three decisions
+
+All calls go through one backend function, `decide(state, questions)`, which posts to `LAYA_URL/v1/systemone` with `"model": "laya"`. It has a 2-second timeout and returns `None` on any failure. Laya's multilingual model reads at most 1,024 tokens, so keep `state` short.
+
+**1. Grade a typed answer (C4).** Used when a caregiver types an answer instead of tapping "Show answer."
+
+```json
+{
+  "model": "laya",
+  "state": {"question": "Ruth gains 3 lb overnight. What do you do?",
+            "approved_answer": "Call the heart failure nurse.",
+            "caregiver_answer": "phone her nurse"},
+  "questions": {
+    "grade": {"type": "choice",
+              "instructions": "How well does caregiver_answer match approved_answer in meaning?",
+              "criteria": {"correct": "same meaning, nothing important missing",
+                           "partial": "partly right or missing an important detail",
+                           "incorrect": "wrong, unrelated or blank"}}
+  }
+}
+```
+
+The grade maps to FSRS: `correct` → Good, `partial` → Hard, `incorrect` → Again. The card still shows the approved answer afterward. If Laya fails, the card falls back to the three self-rating buttons.
+
+**2. Pick the relevant fact for Ruth (E7, and D5 for caregivers).** Each choice option is one approved fact meant for her (shown as a short label), plus `none`. The plugin injects only that fact, so Gemma never sees the whole handbook.
+
+**3. Read Ruth's intent (E7).** In the same request as decision 2, add:
+- `intent`, a choice between `care_question`, `chat` and `wants_person`.
+- `unsure`, a yes/no question: "Does the person seem confused or unable to continue?"
+
+These go into Gemma's context as hints. They never trigger actions on their own.
+
+Laya never notifies anyone, approves a fact or concludes anything about Ruth's health.
+
 ### API contract (agree on this in the first 25 minutes)
 
-Auth header: `X-Telegram-Init-Data`. The backend validates it with HMAC using the bot token. When `DEV_AUTH=1`, `X-Dev-User: priya|marcus|dev` is also accepted for browser development. Turn this off before the demo.
+Auth header: `X-Telegram-Init-Data`. The backend validates it with HMAC using the bot token. When `DEV_AUTH=1`, `X-Dev-User: priya|marcus|dev` is also accepted for browser development. Turn this off before the demo. Every `fetch` should also send the header `ngrok-skip-browser-warning: 1`.
 
 | Method and path | Returns or does | Features |
 |---|---|---|
@@ -102,24 +155,28 @@ Auth header: `X-Telegram-Init-Data`. The backend validates it with HMAC using th
 | `POST /api/facts/{id}/approve` | Primary caregiver only; creates cards | B3, C1 |
 | `POST /api/documents` | PDF upload; returns draft facts | B3 |
 | `GET /api/brief` | `{changed: [...], due: [...]}`, at most 5 items, warning signs first | C2 |
-| `POST /api/reviews` | `{fact_id, rating}`; Py-FSRS schedules the card | C1, C3 |
+| `POST /api/reviews` | `{fact_id, rating}` or `{fact_id, answer_text}`; Laya grades typed answers; Py-FSRS schedules | C1, C3, C4 |
 | `GET /api/coverage` | For each warning fact, each caregiver's retrievability and status | D1, D2 |
 | `GET /api/changes` | Recent events, newest first | D3 |
 | `POST /api/demo/send-briefs` | Sends each caregiver a Telegram message with an "Open brief" button | C6 |
 | `POST /api/demo/reset` | Reseeds the database | F3 |
+| `POST /api/internal/ruth-context` | `{sender_id, message}` → context string with the relevant fact and Laya hints | E7 |
+| `POST /api/internal/notify` | `{sender_id, fact_id, summary}` → messages the circle and logs an event | E7 |
 
-Rating buttons: caregivers aren't flashcard users, so show three buttons. **Didn't know** maps to Again, **Partly** to Hard, **Knew it** to Good.
+The `/api/internal/*` endpoints accept only requests from localhost with a shared secret, and are never exposed through ngrok paths the Mini App uses.
+
+Rating buttons when nothing is typed: **Didn't know** maps to Again, **Partly** to Hard, **Knew it** to Good.
 
 Coverage status (D1): **green** when retrievability is at or above the tier target, **amber** from 0.7 up to the target, **red** below 0.7 or never reviewed. The coverage alert (D2) can be real: show a banner when any warning fact has no green caregiver besides the primary.
 
-## Older adult interaction rules (Hermes system prompt for Ruth)
+## Older adult interaction rules (Hermes prompt for Ruth)
 
-These come from ChatGPT's plan and the ideas doc:
+From ChatGPT's plan and the ideas doc:
 
 - Use short, direct sentences. Ask one thing at a time. Offer no more than two choices.
 - Help Ruth do things herself: let her try first, then give one small hint, then guide one step at a time.
-- Answer only from facts in the injected context. If the answer isn't there, say so and offer to ask Priya.
-- Never mention caregiver-only facts. The plugin filters them out before Gemma sees anything.
+- Answer only from the fact in the injected context. If there isn't one, say so and offer to ask Priya.
+- Never mention caregiver-only facts. The backend filters them out before Gemma sees anything.
 - Never quiz Ruth like a test, and never say "wrong."
 - Never contact anyone without Ruth's yes. Only `carebridge_notify_circle` sends messages, and only after she agrees.
 - Never give new medical advice. Repeat the care plan and point her to the nurse line.
@@ -133,9 +190,13 @@ These come from ChatGPT's plan and the ideas doc:
 > **Ruth:** Yes please.
 > **Bot:** Done. Priya will see it now.
 
-Priya's phone then gets a Telegram message with an "Open Care-Bridge" button. In the Mini App, the weight rule shows the badge "Ruth asked about this today", tying into the responsibility shift (E3).
+Behind the scenes:
 
-How it works: the `care-bridge` plugin's `pre_llm_call` looks up the role from `sender_id`. For Ruth, it injects only approved facts whose audience includes her. Gemma writes the reply, and the single tool `carebridge_notify_circle` asks the backend to message the circle.
+1. Hermes's `pre_llm_call` sends the message to `/api/internal/ruth-context`.
+2. Laya picks the weight-rule fact and returns `intent = care_question`.
+3. The plugin injects that one fact, and Gemma writes the reply.
+4. After Ruth says yes, Gemma calls `carebridge_notify_circle`.
+5. Priya's phone gets a Telegram message with an "Open Care-Bridge" button. In the Mini App, the weight rule shows the badge "Ruth asked about this today", tying into the responsibility shift (E3).
 
 ## Team and workstreams
 
@@ -143,14 +204,14 @@ The plan assumes four people. With three, Nehal also takes W4.
 
 | Workstream | Owner | Builds | Features |
 |---|---|---|---|
-| W1 Backend | Python person | FastAPI, SQLite schema, initData auth, Py-FSRS, brief, coverage, changes, invites, seed loader, send-briefs | A1–A3, B1, B5–B7, C1, C2, C5, C6, D1, D3, F1–F3 |
+| W1 Backend | Python person | FastAPI, SQLite schema, initData auth, Py-FSRS, brief, coverage, changes, invites, seed loader, send-briefs, Laya client and grading | A1–A3, B1, B5–B7, C1–C6, D1, D3, F1–F3 |
 | W2 Mini App | Frontend person (or two) | Vite + React + TS; Telegram WebApp SDK; screens: Brief, Handbook, Add, Coverage, Changes, Ruth's profile and circle | UI for all Must features |
-| W3 Models and Hermes | Nehal (demo Mac) | Model benchmark, Ollama settings, PDF-to-draft-facts prompt and JSON schema, question/answer drafting, `care-bridge` plugin, bot setup, tunnel | B3, E7, setup |
+| W3 Models and Hermes | Nehal (demo Mac) | Unsloth and Laya setup, ngrok, Gemma e4b settings, PDF extraction prompt and JSON schema, `care-bridge` plugin and internal endpoints, bot setup | B3, E7, setup |
 | W4 Demo | Fourth person | Synthetic discharge PDF, seed facts, demo script, pitch, phone testing, backup recording | F3, demo |
 
 ### Mini App screens
 
-1. **Brief** (default for aides and family): up to five cards, changed facts first, question first, then reveal and rate.
+1. **Brief** (default for aides and family): up to five cards, changed facts first. Each card shows the question, an optional answer box (graded by Laya) or "Show answer", then the result.
 2. **Handbook:** facts by category with search and source; drafts awaiting approval are shown to the primary caregiver.
 3. **Add** (primary action): add by text, or upload a PDF to get draft facts, then approve.
 4. **Coverage:** warning signs × caregivers grid with green, amber and red; alert banner (D2); responsibility-shift badge (E3).
@@ -163,34 +224,50 @@ Use Telegram's theme variables, call `Telegram.WebApp.ready()` and `expand()`, a
 
 | Time | Everyone | W1 Backend | W2 Mini App | W3 Models and Hermes | W4 Demo |
 |---|---|---|---|---|---|
-| 0:00–0:25 | Agree on the API contract, repo layout and seed list. Create folders. | Schema and stubs that return seed JSON | Vite scaffold, Telegram SDK, tab layout | Install `cloudflared`, start the tunnel, BotFather menu button and Mini App, allowlist teammates, benchmark models | Write the synthetic discharge PDF (1–2 pages) and the 15 seed facts |
-| 0:25–1:30 | | Auth, facts CRUD, approve, cards, reviews with Py-FSRS, brief | Handbook, Brief and card flow against stubs | Extraction prompt with JSON schema; question/answer drafting; `/api/documents` endpoint with W1 | Seed loader data with backdated reviews so coverage is mixed |
-| **1:30** | **Checkpoint 1:** Mini App opens inside Telegram on a real phone, auth works, the handbook shows seed facts | | | | |
-| 1:30–2:30 | | Coverage, changes, invites and join, send-briefs | Add (text and PDF), approve drafts, Coverage, Changes, profile | `care-bridge` plugin: role lookup, Ruth's context, notify tool; disable `study-coach` | Demo script; test every screen on iOS and Android |
+| 0:00–0:25 | Agree on the API contract, repo layout and seed list. Create folders. | Schema and stubs that return seed JSON | Vite scaffold, Telegram SDK, tab layout | Install ngrok and Unsloth; enable the Decision API; switch Hermes to e4b; BotFather Mini App and menu button; allowlist teammates | Write the synthetic discharge PDF (1–2 pages) and the 15 seed facts |
+| 0:25–1:30 | | Auth, facts CRUD, approve, cards, reviews with Py-FSRS, brief, Laya grading with fallback | Handbook, Brief and card flow against stubs | Extraction prompt with JSON schema on e4b; question/answer drafting; `/api/documents` with W1 | Seed loader data with backdated reviews so coverage is mixed |
+| **1:30** | **Checkpoint 1:** Mini App opens inside Telegram on a real phone through ngrok; auth works; the handbook shows seed facts; one typed answer is graded by Laya; memory pressure checked | | | | |
+| 1:30–2:30 | | Coverage, changes, invites and join, send-briefs | Add (text and PDF), approve drafts, Coverage, Changes, profile | `care-bridge` plugin, internal endpoints, Laya fact picking; disable `study-coach` | Demo script; test every screen on iOS and Android |
 | **2:30** | **Checkpoint 2:** the whole Must demo path works end to end on phones | | | | |
 | 2:30–3:15 | Fix bugs from checkpoint 2 first | Coverage alert, responsibility badge | Polish, empty states, loading states | Older-adult moment end to end | Rehearse with the real flow |
 | **3:15** | **Feature freeze.** Stretch work only if every Must is green. | | | | |
 | 3:15–3:45 | Rehearse twice. Record a backup video of the full demo. | | | | |
 | 3:45–4:00 | Buffer and pitch | | | | |
 
-Stretch order if time remains: C4 grading with Gemma JSON output, D5 ask the handbook (Hermes plus the facts context), B2 voice note (Hermes already transcribes), C7 my progress, C8 2D scenario card, D4 shift log, B4 med-list photo, B8 general lessons.
+Stretch order if time remains: D5 ask the handbook (reuses Laya fact picking), B2 voice note (Hermes already transcribes), C7 my progress, C8 2D scenario card, D4 shift log, B4 med-list photo, B8 general lessons.
 
 ## Setup checklist (W3, first 25 minutes)
 
-- [ ] `brew install cloudflared`, then `cloudflared tunnel --url http://localhost:5173`. Keep it running all day; the URL changes on every restart.
-- [ ] Vite: add the tunnel host to `server.allowedHosts` and proxy `/api` to FastAPI on port 8000.
-- [ ] BotFather: create the Mini App (`/newapp`) and set the menu button URL to the tunnel. Optionally rename the bot to Care-Bridge (`/setname`, `/setuserpic`). Reuse the existing bot so Hermes needs no new token.
+**Models**
+- [ ] `ollama stop gemma4:12b-mlx`. Set `default_model: gemma4:e4b-mlx` in `~/.hermes/config.yaml` and restart the gateway.
+- [ ] Set `OLLAMA_KEEP_ALIVE=-1` so e4b stays warm, and run one request to load it.
+- [ ] Install Unsloth: download from [unsloth.ai/download](https://unsloth.ai/download), or `curl -fsSL https://unsloth.ai/install.sh | sh`.
+- [ ] In Unsloth, open Settings → API → Decision API, turn on **Serve requests**, and turn on **Keyless API access** for localhost. Keep the default multilingual model and CPU.
+- [ ] Warm Laya with one request; Unsloth says the first takes 10–20 seconds.
+- [ ] Smoke test:
+
+  ```bash
+  curl -s localhost:8888/v1/systemone -H 'Content-Type: application/json' -d '{"model":"laya","state":"I forgot what to do about my weight","questions":{"intent":{"type":"choice","criteria":{"care_question":"asks about their care","chat":"small talk","wants_person":"asks for a person"}}}}'
+  ```
+
+**HTTPS**
+- [ ] Install ngrok (`brew install ngrok`), sign in at ngrok.com, and claim the free static domain.
+- [ ] Add the authtoken yourself: `ngrok config add-authtoken <token>`. Keep it out of the repo and chat.
+- [ ] Start the tunnel and keep it running all day: `ngrok http --url=<your-domain>.ngrok-free.app 5173`.
+- [ ] Vite: set `server.allowedHosts: ['.ngrok-free.app']` and proxy `/api` to FastAPI on port 8000.
+- [ ] ngrok's free plan shows a "You are about to visit" warning page the first time a browser opens the site. Open the Mini App once on every demo phone and tap **Visit Site** before the demo. API calls skip it with the `ngrok-skip-browser-warning` header.
+
+**Telegram and Hermes**
+- [ ] BotFather: create the Mini App (`/newapp`) and set the menu button to the ngrok URL. Optionally rename the bot (`/setname`, `/setuserpic`). Reuse the existing bot so Hermes needs no new token.
 - [ ] Add teammates' Telegram user IDs to the Hermes allowlist, especially whoever plays Ruth.
-- [ ] Benchmark both models on the extraction prompt and a short chat reply. Keep the faster one that gives valid JSON.
-- [ ] Set `OLLAMA_MAX_LOADED_MODELS=1` and `OLLAMA_KEEP_ALIVE=-1`. Warm the model before the demo.
-- [ ] Put the bot token in `local.env` for the backend. It is git-ignored; never commit it or paste it into the frontend.
+- [ ] Put the bot token in `local.env` for the backend. It is git-ignored; never commit it or put it in the frontend.
 - [ ] Before testing the older-adult moment, move `study-coach` from `plugins.enabled` to `plugins.disabled` in `~/.hermes/config.yaml` and restart the gateway.
 
 ## Seed data (W4)
 
 - **Ruth Alvarez**, 78. Heart failure, early memory loss. Lives alone with daily aide visits.
 - **Priya** (daughter, primary caregiver; Nehal's Telegram account), **Marcus** (weekday aide; a teammate's account), **Dev** (son, weekends; seeded only, no account needed). **Ruth** is played by a teammate's Telegram account.
-- About 15 fictional facts across meds, allergies, routines, mobility, behaviour and contacts. At least four should be warning signs, including:
+- About 15 fictional facts across meds, allergies, routines, mobility, behaviour and contacts. Keep each fact under 25 words so Laya's 1,024-token limit fits Ruth's whole list. At least four should be warning signs, including:
   - the weight rule
   - a sulfa allergy
   - "walker brakes on before she stands"
@@ -202,7 +279,7 @@ Stretch order if time remains: C4 grading with Gemma JSON output, D5 ask the han
 
 1. **Problem (20 s):** Ruth has heart failure and early memory loss. Three people care for her. What matters lives in Priya's head.
 2. **Priya adds the discharge PDF (40 s):** Gemma drafts facts with sources; Priya approves them.
-3. **Marcus's brief (40 s):** the "Send briefs" button pushes Marcus a Telegram message. He opens a 60-second brief and misses the weight rule; FSRS brings it back sooner.
+3. **Marcus's brief (40 s):** the "Send briefs" button pushes Marcus a Telegram message. He opens a 60-second brief and types "phone her nurse"; Laya marks it correct. He misses the walker-brake fact, so FSRS brings it back sooner.
 4. **Change (20 s):** Priya edits the evening-meds fact. It appears in Changes and at the top of Marcus's next brief.
 5. **Coverage (30 s):** a grid of who reliably knows each warning sign, with an alert that only Priya knows the weight rule.
 6. **Ruth (30 s):** Ruth asks the bot about puffy ankles. It answers from her approved plan and asks before telling Priya, and Priya's phone buzzes.
@@ -212,9 +289,12 @@ Stretch order if time remains: C4 grading with Gemma JSON output, D5 ask the han
 
 | Risk | Fallback |
 |---|---|
+| Memory pressure with e4b and Laya together | Close heavy apps; if still red, run Laya on a teammate's laptop and change `LAYA_URL` |
+| Laya down or slow | Cards fall back to self-rating; Ruth's context falls back to a keyword match on her facts |
+| e4b returns invalid JSON during extraction | Use Ollama's `format` JSON schema, keep the PDF to 1–2 pages, validate in Python and retry once |
 | PDF extraction is slow on stage | Run it once during rehearsal and cache drafts by file hash; the demo path reuses the cached result |
-| Tunnel drops | Restart it and update the BotFather URL (about 1 minute); the backup video covers the worst case |
-| Model runs out of memory or stalls | One model loaded, warmed before the demo; close other heavy apps |
+| ngrok warning page appears on stage | Tap **Visit Site** on every demo phone beforehand; send the skip header on all API calls |
+| Tunnel drops | Restart ngrok; the static domain keeps the same URL, so BotFather needs no change |
 | Hermes reply goes off script | Keep Ruth's prompt rules strict; rehearse the exact wording; the backup video covers it |
 | Telegram webview layout bugs | Test on both iOS and Android at checkpoint 1, not at the end |
 | A teammate's Telegram account isn't allowlisted | Add every ID in the setup step and test by 1:30 |

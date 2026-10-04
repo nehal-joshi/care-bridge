@@ -15,8 +15,8 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 
 | Today | Features |
 |---|---|
-| Must | A1, A2, A3, B1, B3, B5, B6, B7, C1, C2, C3, C5, C6, D1, D3, F1, F2, F3 |
-| Stretch | E7 first, then C4, D5, B2, C7, C8, D4, B4, B8 (order from [the execution plan](execution-plan.md)) |
+| Must | A1, A2, A3, B1, B3, B5, B6, B7, C1, C2, C3, C4, C5, C6, D1, D3, F1, F2, F3 |
+| Stretch | E7 first, then D5, B2, C7, C8, D4, B4, B8 (order from [the execution plan](execution-plan.md)) |
 | Fake | D2, E3 |
 | Cut | A4, A5, E1, E2, E4, E5, E6, F4, F5 |
 
@@ -50,7 +50,7 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 | C1 | FSRS card per caregiver per fact | Each caregiver has their own schedule for each fact | Py-FSRS | S | Must |
 | C2 | Pre-shift brief | Under 60 seconds: facts this caregiver is about to forget, plus changes since their last brief | Due-card query | M | Must (headline feature) |
 | C3 | Question-first card | Question shown; answer revealed after an attempt; rated Didn't know, Partly, Knew it (Again, Hard, Good) | Study card flow | S | Must |
-| C4 | Short-answer grading | Typed answer scored against the fact by Gemma with JSON output | Rubric grading | M | Stretch (self-rate until then) |
+| C4 | Short-answer grading | Typed answer graded correct, partial or incorrect by the Laya decision model | Rubric grading | S | Must (self-rating if Laya is down) |
 | C5 | Recall target by tier | 0.97 for warning signs, 0.9 for routine, 0.85 for nice to know | Scheduler setting | S | Must |
 | C6 | Bot reminders | Telegram message when warning signs are due, opening the Mini App | Daily reminder cron | S | Must |
 | C7 | My progress | What I know well, what I keep forgetting | Progress report | S | Stretch |
@@ -64,7 +64,7 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 | D2 | Coverage alert | Warns the primary caregiver when no caregiver reliably knows a warning sign | None | M | Fake |
 | D3 | "What changed" feed | Recent fact edits and new facts, newest first | Event journal | S | Must |
 | D4 | Shift log and handoff notes | Caregivers leave notes for the next shift | Event journal | M | Stretch |
-| D5 | Ask the handbook | Ask in chat ("what does Mom take at night?"); answers come only from the facts | Course-grounded Q&A | M | Stretch |
+| D5 | Ask the handbook | Ask in chat ("what does Mom take at night?"); Laya picks the relevant fact and Gemma answers only from it | Course-grounded Q&A | M | Stretch |
 
 ## E. Older adult side (Episode and Companion modes)
 
@@ -76,7 +76,7 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 | E4 | Escalation alerts | Alert the circle when the older adult misses a warning sign twice | None | M | Cut |
 | E5 | Memory companion | Daily conversations with practice woven in, photo cards, no "wrong" answers | None | L | Cut |
 | E6 | Recall trend report | Months-long trend in the older adult's recall, shared with family | None | L | Cut |
-| E7 | Companion answers from the care plan | Ruth asks the bot in Telegram; Hermes answers only from approved facts meant for her and asks before notifying Priya | `pre_llm_call` context hook | M | Stretch (first) |
+| E7 | Companion answers from the care plan | Ruth asks the bot in Telegram; Laya picks the relevant approved fact meant for her; Gemma answers from it and asks before notifying Priya | `pre_llm_call` context hook | M | Stretch (first) |
 
 ## F. Platform
 
