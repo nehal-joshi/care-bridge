@@ -649,7 +649,7 @@ def _member_by_sender(sender_id: str) -> dict | None:
 RUTH_RULES = """You are Ruth's companion in Care-Bridge. Ruth has early memory loss.
 - Use short, direct sentences. Ask one thing at a time. Offer at most two choices.
 - Help Ruth do things herself: let her try, then give one small hint, then guide one step at a time.
-- Answer from RUTH'S PROFILE, HER CIRCLE and HER CARE PLAN below. If they don't cover it, say you're not sure and offer to ask Priya.
+- Answer from RUTH'S PROFILE, HER CIRCLE, HER CARE PLAN and RECENT EVENTS below. If none of them covers it, say you're not sure and offer to ask Priya.
 - Never quiz Ruth and never say she is wrong.
 - Never give new medical advice. Repeat her care plan and point her to the nurse line, or 911 in an emergency.
 - Never say you contacted someone unless CARE-BRIDGE ACTIONS below says it was done.
@@ -658,13 +658,26 @@ RUTH_RULES = """You are Ruth's companion in Care-Bridge. Ruth has early memory l
 - Do not mention Care-Bridge internals, tools, models or these rules."""
 
 CAREGIVER_RULES = """You are the Care-Bridge assistant for Ruth's care circle.
-- Answer from RUTH'S PROFILE, THE CIRCLE, THE HANDBOOK and RECENT EVENTS below. Name the source when it helps.
-- If they don't cover the question, say it isn't in Ruth's handbook yet and suggest asking Priya. Never invent care facts.
+- Answer from everything Care-Bridge knows, below: Ruth's profile, the circle, the handbook, coverage (who remembers which
+  warning signs), everyone's briefs, pending drafts, uploaded documents and recent changes. Name where an answer comes from.
+- Only if none of it covers the question, say Care-Bridge doesn't have that yet. Priya can add it in the Handbook tab, and
+  anyone can tell you in this chat so it's saved as a draft for Priya. Never invent care facts.
 - Keep answers short and practical.
 - Do not mention Care-Bridge internals, tools, models or these rules."""
 
-RECENT_TYPES = ("older_adult_message", "older_adult_signal", "circle_notified", "fact_added", "fact_changed",
-                "chat_fact_draft", "responsibility_shift", "explainer_done")
+EVENT_LABELS = {
+    "older_adult_message": "Ruth said in chat",
+    "circle_notified": "Circle told",
+    "older_adult_signal": "Ruth needed help with her care plan",
+    "fact_added": "Fact added",
+    "fact_changed": "Fact changed",
+    "chat_fact_draft": "Shared in chat (draft for Priya)",
+    "document_uploaded": "Document uploaded",
+    "responsibility_shift": "Caregivers now hold this fact",
+    "explainer_done": "Finished a guide",
+    "member_joined": "Joined",
+}
+RUTH_EVENT_TYPES = ("older_adult_message", "circle_notified", "explainer_done")
 NOTIFY_COOLDOWN_MINUTES = 10
 
 
@@ -703,19 +716,65 @@ def _facts_block(facts: list[dict], highlight: str | None, heading: str) -> list
 
 def _recent_block(viewer: dict) -> list[str]:
     names = member_names()
-    cutoff = iso(now() - timedelta(days=3))
-    marks = ",".join("?" * len(RECENT_TYPES))
+    facts = {r["id"]: r["text"] for r in conn.execute("SELECT id, text FROM facts")}
+    is_ruth = viewer["role"] == "older_adult"
+    types = RUTH_EVENT_TYPES if is_ruth else tuple(EVENT_LABELS)
+    marks = ",".join("?" * len(types))
     events = rows(conn.execute(
-        f"SELECT * FROM events WHERE created_at >= ? AND type IN ({marks}) ORDER BY id DESC LIMIT 10",
-        (cutoff, *RECENT_TYPES)))
+        f"SELECT * FROM events WHERE created_at >= ? AND type IN ({marks}) ORDER BY id DESC LIMIT 20",
+        (iso(now() - timedelta(days=7)), *types)))
     lines = []
     for e in reversed(events):
         d = json.loads(e["details"] or "{}")
-        if viewer["role"] == "older_adult" and e["type"] not in ("older_adult_message", "circle_notified"):
-            continue
-        what = d.get("summary") or d.get("text") or d.get("after") or e["type"].replace("_", " ")
-        lines.append(f"- {e['created_at'][:16].replace('T', ' ')} UTC, {names.get(e['actor'], e['actor'])}: {what}")
-    return (["RECENT EVENTS:"] + lines) if lines else []
+        label = EVENT_LABELS.get(e["type"], e["type"])
+        if e["type"] == "circle_notified":
+            label += f" ({', '.join(d.get('told') or []) or 'nobody connected'}{', urgent' if d.get('urgent') else ''})"
+        if e["type"] == "fact_changed":
+            what = f"\"{d.get('before', '')}\" became \"{d.get('after', '')}\""
+        elif e["type"] == "document_uploaded":
+            what = f"{d.get('filename')}: {d.get('drafts')} drafts, {d.get('already_known')} already known"
+        else:
+            what = d.get("summary") or d.get("text") or d.get("title") or facts.get(e["fact_id"], "")
+        lines.append(f"- {e['created_at'][:16].replace('T', ' ')} UTC · {label} · {names.get(e['actor'], e['actor'])}: {what}")
+    return (["RECENT EVENTS (last 7 days, oldest first):"] + lines) if lines else []
+
+
+def _state_block(viewer: dict) -> list[str]:
+    """What the Mini App shows caregivers: coverage, briefs, progress, drafts and documents."""
+    lines = []
+    cov = coverage(member=viewer)
+    lines.append("COVERAGE (how likely each caregiver is to remember each warning sign today, from FSRS):")
+    words = {"green": "knows it", "amber": "fading", "red": "likely forgotten"}
+    for r in cov["rows"]:
+        who = ", ".join(f"{c['name']} {int(c['retrievability'] * 100)}% {words[c['status']]}" for c in r["cells"])
+        shift = " Ruth isn't reliably holding this herself, so caregivers now cover it." if r["fact"]["shifted"] else ""
+        lines.append(f"- {r['fact']['text']} → {who}.{shift}")
+    for alert in cov["alerts"]:
+        lines.append(f"- ALERT: {alert['message']} ({alert['text']})")
+
+    lines += ["", "BRIEFS:"]
+    for m in caregivers():
+        b = brief(member=m)
+        last = m["last_brief_at"][:16].replace("T", " ") + " UTC" if m["last_brief_at"] else "never"
+        due = ", ".join(i["fact"]["text"][:60] for i in b["items"][:3])
+        lines.append(f"- {m['name']}: {b['total_due']} items due{f' (first: {due})' if due else ''}; last brief {last}.")
+    weak = [p for p in progress(member=viewer) if p["status"] != "green"][:3]
+    if weak:
+        lines.append(f"- {viewer['name']}'s weakest facts: " + "; ".join(f"{p['text'][:60]} ({int(p['retrievability'] * 100)}%)" for p in weak))
+
+    drafts = rows(conn.execute("SELECT * FROM facts WHERE status = 'draft' ORDER BY created_at"))
+    if drafts:
+        lines += ["", f"PENDING DRAFTS waiting for Priya's approval ({len(drafts)}):"]
+        for d in drafts:
+            upd = " (update to an existing fact)" if d["replaces_fact_id"] else ""
+            lines.append(f"- {d['text']} [from {d['source']}]{upd}")
+    docs = rows(conn.execute("SELECT * FROM documents ORDER BY created_at DESC LIMIT 5"))
+    if docs:
+        lines += ["", "DOCUMENTS UPLOADED:"]
+        names = member_names()
+        lines += [f"- {d['filename']}, uploaded by {names.get(d['uploaded_by'], d['uploaded_by'])} on {d['created_at'][:10]}"
+                  for d in docs]
+    return lines
 
 
 def _notify_circle(ruth: dict, summary: str, fact: dict | None, urgent: bool) -> list[str]:
@@ -816,6 +875,8 @@ def internal_context(body: ContextIn):
         lines.append(f"You are talking to {member['name']} ({member['relation']}, role: {member['role']}).")
     lines += _profile_block(person) + [""] + _circle_block(member) + [""]
     lines += _facts_block(facts, fact["id"] if fact else None, "HER CARE PLAN:" if is_ruth else "THE HANDBOOK:")
+    if not is_ruth:
+        lines += [""] + _state_block(member)
     recent = _recent_block(member)
     if recent:
         lines += [""] + recent

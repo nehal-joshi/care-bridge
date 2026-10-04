@@ -113,7 +113,7 @@ Before Gemma answers any Telegram message, the API reads it (Laya when confident
 | Ruth | Says she feels unwell, without asking for anyone | Logged in Changes for the circle; the bot uses her care plan and asks before telling Priya. |
 | Caregiver | States new care information | Saved as a draft for Priya to approve; an update draft if it changes an existing fact. |
 
-Every message's context includes Ruth's profile, the circle, every fact the sender may see, and the last three days of events. Ruth never sees caregiver-only facts. The circle is messaged at most once every 10 minutes unless the message is urgent.
+Every caregiver message's context includes what the Mini App shows: Ruth's profile, the circle, the handbook, coverage with alerts, everyone's briefs, the sender's weakest facts, pending drafts, uploaded documents and a week of labelled changes. Ruth's context has her profile, her circle, the facts meant for her and her own recent messages; she never sees caregiver-only facts. The circle is messaged at most once every 10 minutes unless the message is urgent.
 
 The emergency rule tells the circle without asking Ruth first. Change `_notify_circle` in `services/api/app/main.py` if your team decides otherwise.
 
