@@ -16,7 +16,7 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 | Today | Features |
 |---|---|
 | Must | A1, A2, A3, B1, B3, B5, B6, B7, C1, C2, C3, C4, C5, C6, D1, D3, F1, F2, F3 |
-| Stretch | E7 first, then D5, B2, C7, C8, D4, B4, B8 (order from [the execution plan](execution-plan.md)) |
+| Stretch | E7 first, E8 built in parallel by its own owner, then D5, B2, C7, C8, D4, B4, B8 (order from [the execution plan](execution-plan.md)) |
 | Fake | D2, E3 |
 | Cut | A4, A5, E1, E2, E4, E5, E6, F4, F5 |
 
@@ -54,7 +54,7 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 | C5 | Recall target by tier | 0.97 for warning signs, 0.9 for routine, 0.85 for nice to know | Scheduler setting | S | Must |
 | C6 | Bot reminders | Telegram message when warning signs are due, opening the Mini App | Daily reminder cron | S | Must |
 | C7 | My progress | What I know well, what I keep forgetting | Progress report | S | Stretch |
-| C8 | Scenario card | 2D "tap the right object" card drawn from fixed JSON (for example, tap the walker brakes) | None | M | Stretch |
+| C8 | Scenario card | "Tap the right object" card for caregivers, reusing Ruth's explainer player (E8) | E8 player | M | Stretch |
 
 ## D. Circle overview
 
@@ -76,6 +76,7 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 | E4 | Escalation alerts | Alert the circle when the older adult misses a warning sign twice | None | M | Cut |
 | E5 | Memory companion | Daily conversations with practice woven in, photo cards, no "wrong" answers | None | L | Cut |
 | E6 | Recall trend report | Months-long trend in the older adult's recall, shared with family | None | L | Cut |
+| E8 | Explainer mini apps for Ruth | The bot sends a "Show me" button that opens a small Three.js explainer in Telegram; Gemma fills a JSON spec from an approved fact and a fixed player (built with threejs-game-skills) draws it | None | L | Stretch (parallel owner) |
 | E7 | Companion answers from the care plan | Ruth asks the bot in Telegram; Laya picks the relevant approved fact meant for her; Gemma answers from it and asks before notifying Priya | `pre_llm_call` context hook | M | Stretch (first) |
 
 ## F. Platform
@@ -97,5 +98,5 @@ Every feature in the Care-Bridge vision (see [the ideas doc](../ideas/ai-for-agi
 3. Marcus gets a bot reminder (C6), opens his pre-shift brief (C2) and answers question-first cards (C3).
 4. Priya edits a fact (B7); it appears in the "what changed" feed (D3) and in Marcus's next brief.
 5. The coverage view (D1) shows which warning signs each caregiver knows. A seeded alert (D2) and a seeded responsibility shift (E3) show where the product goes next.
-6. Ruth asks the bot about puffy ankles; it answers from her approved plan and, after she agrees, tells Priya (E7).
+6. Ruth asks the bot about puffy ankles; it answers from her approved plan, opens a "Show me" explainer (E8) and, after she agrees, tells Priya (E7).
 7. If other stretch features are ready, add them to the demo: a voice note or med-list photo (B2, B4), typed-answer grading (C4), or asking the handbook (D5).

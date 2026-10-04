@@ -1,7 +1,7 @@
 # Care-Bridge hackathon execution plan
 
 **Goal:** a working demo in 4 hours. Caregivers use a Telegram Mini App; Ruth (the older adult) chats with the same bot through Hermes.
-**Scope:** [feature-list.md](feature-list.md). This plan builds every **Must** feature first, then one older-adult moment, then stretch features only if time is left.
+**Scope:** [feature-list.md](feature-list.md). This plan builds every **Must** feature first, then the older-adult moment with its explainer mini app, then stretch features only if time is left.
 **Team decisions:** one model, `gemma4:e4b-mlx`; the Laya decision model running locally through Unsloth; ngrok for HTTPS.
 **Inputs:** ChatGPT's suggested architecture (reviewed below) and checks of the local machine.
 
@@ -15,6 +15,7 @@
 | Py-FSRS 6.3.2 | Caregiver card scheduling, retrievability for coverage | In the prototype venv |
 | ngrok | Public HTTPS URL for the Mini App | **To install.** Use a free static domain so the URL never changes. |
 | Telegram bot | One bot for caregivers and Ruth | Running through Hermes with `allow_all_users: false`; add teammates to the allowlist |
+| [threejs-game-skills](https://github.com/majidmanzarpour/threejs-game-skills) | Build-time skills for the coding agent that builds Ruth's explainer player (Vite + TypeScript + Three.js, mobile controls, Playwright tests) | **To install** on the explainer builder's machine |
 
 ### Memory budget (18 GB Mac)
 
@@ -52,10 +53,10 @@ ChatGPT's plan gets the product boundaries right but adds more infrastructure th
 | Three graphs (care, capability, caregiver knowledge) | **Change: SQLite tables, no capability graph** | The care "graph" is a facts table with categories; caregiver knowledge is the FSRS cards table. The capability graph (what Ruth can do on her phone) is outside today's scope. Don't call SQLite tables a graph in the pitch. |
 | Hermes cron delivers caregiver reminders | **Change: backend sends them directly** | Reminders are deterministic. Putting an LLM agent in that path adds delay and the risk of reworded messages. The backend calls the Bot API `sendMessage` with an "Open brief" button; a demo button triggers it on stage. |
 | Separate "Telegram bridge" service for Mini App buttons | **Change: fold into the backend; only send, never poll** | Only one process may poll a bot token, or Telegram returns 409 Conflict. Hermes polls; the backend only sends. Also set the bot's menu button to the Mini App in BotFather, which needs no code. |
-| Three.js scenario renderer and the threejs-game-skills pack | **Cut; optional 2D version as last stretch (C8)** | A 3D scene in Telegram's mobile webview is a 4-hour project on its own. |
+| Three.js scenario renderer and the threejs-game-skills pack | **Keep for Ruth's side (team decision), as a fixed player plus JSON specs (E8)** | The skills are build-time tools for a coding agent, not runtime generators. A teammate uses them today to build one explainer player with two or three scene templates; Gemma only fills in a JSON spec per fact. Having e4b write Three.js code for each request would be slow, unreliable and unsafe to run on Ruth's phone. The caregiver 2D card (C8) can reuse the same player later. |
 | HyperFrames videos | **Cut** | Not needed for the demo. |
 | Older-adult moment: Ruth asks how to send Rahul a photo | **Change the example** | Phone-skills help is a different problem. Use a question answered from approved care facts; it ties to the handbook, coverage and the responsibility shift. |
-| Five plugin tools | **Change: one tool** | Context arrives through `pre_llm_call`. Keep only `carebridge_notify_circle`, called after Ruth says yes. |
+| Five plugin tools | **Change: two tools** | Context arrives through `pre_llm_call`. Keep `carebridge_notify_circle` (called after Ruth says yes) and `carebridge_show_explainer` (sends her a "Show me" button). |
 | Pitch listing every component | **Change** | Judges remember the problem and the demo. Lead with Ruth and Marcus; keep the tech to one slide. |
 
 ## Architecture for today
@@ -76,12 +77,15 @@ Vite (dev) or built app ──/api──► FastAPI ◄── Hermes gateway (on
               and the Bot API for reminders (send only)
 ```
 
+Ruth's explainer player (E8) is a separate small Vite + Three.js app. FastAPI serves its build at `/explain/`, so it shares the ngrok domain and the BotFather Mini App with the caregiver app.
+
 All Laya and database logic lives in FastAPI. The Hermes plugin stays thin: it calls the backend's internal endpoints and passes the result to Gemma. Everything runs on the demo Mac. Collaborators build the Mini App on their own machines against the ngrok URL.
 
 ### Repo layout
 
 ```text
-apps/miniapp/                 Vite + React + TypeScript Mini App
+apps/miniapp/                 Vite + React + TypeScript Mini App for caregivers
+apps/explainer/               Vite + TypeScript + Three.js explainer player for Ruth (E8)
 services/api/                 FastAPI, SQLite, Py-FSRS, Ollama and Laya clients
 hermes/plugins/care-bridge/   plugin source; deploy to ~/.hermes/plugins/care-bridge
 demo/                         synthetic discharge PDF, seed data, demo script
@@ -99,6 +103,7 @@ docs/                         product and hackathon docs
 | `cards` | member_id, fact_id, fsrs_card_json, seen_version |
 | `reviews` | member_id, fact_id, rating, answer_text, laya_grade, reviewed_at |
 | `events` | id, person_id, type, actor, fact_id, details, created_at (feeds "What changed") |
+| `explainers` | id, fact_id, fact_version, spec_json, created_at (one cached spec per fact version) |
 
 Rules:
 - Approving a fact creates one card per caregiver in its audience. A new member gets cards for every approved fact.
@@ -162,6 +167,9 @@ Auth header: `X-Telegram-Init-Data`. The backend validates it with HMAC using th
 | `POST /api/demo/reset` | Reseeds the database | F3 |
 | `POST /api/internal/ruth-context` | `{sender_id, message}` → context string with the relevant fact and Laya hints | E7 |
 | `POST /api/internal/notify` | `{sender_id, fact_id, summary}` → messages the circle and logs an event | E7 |
+| `POST /api/internal/explainer` | `{sender_id, fact_id}` → gets or creates the spec, then sends Ruth a "Show me" button that opens `/explain/?id=<id>` | E8 |
+| `GET /api/explainers/{id}` | The validated spec JSON; Ruth and her circle only | E8 |
+| `POST /api/explainers/{id}/done` | Logs "Ruth finished the explainer" for the Changes feed | E8 |
 
 The `/api/internal/*` endpoints accept only requests from localhost with a shared secret, and are never exposed through ngrok paths the Mini App uses.
 
@@ -186,7 +194,10 @@ From ChatGPT's plan and the ideas doc:
 > **Ruth:** My ankles look puffy today. What was I supposed to do?
 > **Bot:** Your care plan says to check your weight. Did the scale go up more than 3 pounds since yesterday?
 > **Ruth:** Yes, about 4.
-> **Bot:** Then the plan says to call the heart failure nurse at 555-0142. Would you like me to let Priya know too?
+> **Bot:** Then the plan says to call the heart failure nurse at 555-0142. Want me to show you the weigh-in steps?
+> **Ruth:** Yes.
+> *(A "Show me" button arrives. Ruth taps it, and a three-step 3D explainer opens inside Telegram.)*
+> **Bot:** Would you like me to let Priya know too?
 > **Ruth:** Yes please.
 > **Bot:** Done. Priya will see it now.
 
@@ -195,19 +206,64 @@ Behind the scenes:
 1. Hermes's `pre_llm_call` sends the message to `/api/internal/ruth-context`.
 2. Laya picks the weight-rule fact and returns `intent = care_question`.
 3. The plugin injects that one fact, and Gemma writes the reply.
-4. After Ruth says yes, Gemma calls `carebridge_notify_circle`.
-5. Priya's phone gets a Telegram message with an "Open Care-Bridge" button. In the Mini App, the weight rule shows the badge "Ruth asked about this today", tying into the responsibility shift (E3).
+4. When Ruth asks to be shown, Gemma calls `carebridge_show_explainer`, and the backend sends the "Show me" button (E8).
+5. After Ruth says yes to telling Priya, Gemma calls `carebridge_notify_circle`.
+6. Priya's phone gets a Telegram message with an "Open Care-Bridge" button. In the Mini App, the weight rule shows the badge "Ruth asked about this today", tying into the responsibility shift (E3).
+
+## Ruth's explainer mini apps (E8)
+
+When words aren't enough, the bot offers Ruth a small interactive explainer inside Telegram, such as how to do her daily weigh-in.
+
+### How "generated" works
+
+1. **Built once, today:** a teammate uses threejs-game-skills with Claude Code or Codex to build one explainer player with two or three scene templates. Start with `/threejs-game-director` and scope it to "a calm, single-screen explainer player," not a game.
+2. **Generated per fact:** Gemma turns an approved fact into a small JSON spec that picks a template and fills in the step text.
+3. **Validated:** the backend checks that the template and object ids exist and that every step's text comes from the approved fact. Then it caches the spec by fact version.
+4. **Delivered:** the backend sends Ruth a message with a "Show me" `web_app` button. Hermes can't send Mini App buttons, so this goes through the backend's send-only Bot API client.
+
+Example spec:
+
+```json
+{
+  "template": "weigh_in",
+  "title": "Your morning weigh-in",
+  "fact_id": "fact_weight_rule",
+  "steps": [
+    {"text": "Step on the scale before breakfast.", "focus": "scale", "action": "tap"},
+    {"text": "Compare with yesterday's number.", "focus": "display", "action": "watch"},
+    {"text": "Up more than 3 pounds? Call your heart failure nurse.", "focus": "phone", "action": "tap"}
+  ]
+}
+```
+
+### Templates for today
+
+| Template | Scene | Fact it explains |
+|---|---|---|
+| `weigh_in` | Bathroom scale, number display, phone | The weight rule (used in the demo) |
+| `stand_safely` | Chair, walker with brakes, "count to five" | Walker brakes before standing |
+| `pill_box` (only if time) | Morning and evening pill organizer | Evening meds routine |
+
+### Design rules for Ruth
+
+- **Fixed camera.** No rotating or zooming, which confuses new users. One scene and one step per screen.
+- **Large type.** At least 24 px text and a large "Next" button, with high contrast and Telegram's theme colours.
+- **No fail state.** Tapping the wrong object gently highlights the right one. The explainer ends on "You did it" and a "Back to chat" button.
+- **Slow motion.** Animations last a second or more, with no flashing.
+- **Light scenes.** Low-poly shapes built in code, no downloaded 3D models, so it loads fast on older phones. If WebGL fails, show the same steps as large illustrated cards.
+- **No paid generators today.** Skip `threejs-3d-generator`, `threejs-image-generator` and `threejs-audio-generator`; they need Tripo, Gemini and ElevenLabs keys.
+- **Text only from the spec.** The player never shows text that isn't in the spec, and the spec's text comes only from the approved fact.
 
 ## Team and workstreams
 
-The plan assumes four people. With three, Nehal also takes W4.
+The plan assumes four people. With five, give the explainer (E8) its own owner. With three, Nehal takes the seed data and demo script, and E8 is built only if the Must path is green by 2:30.
 
 | Workstream | Owner | Builds | Features |
 |---|---|---|---|
 | W1 Backend | Python person | FastAPI, SQLite schema, initData auth, Py-FSRS, brief, coverage, changes, invites, seed loader, send-briefs, Laya client and grading | A1–A3, B1, B5–B7, C1–C6, D1, D3, F1–F3 |
 | W2 Mini App | Frontend person (or two) | Vite + React + TS; Telegram WebApp SDK; screens: Brief, Handbook, Add, Coverage, Changes, Ruth's profile and circle | UI for all Must features |
 | W3 Models and Hermes | Nehal (demo Mac) | Unsloth and Laya setup, ngrok, Gemma e4b settings, PDF extraction prompt and JSON schema, `care-bridge` plugin and internal endpoints, bot setup | B3, E7, setup |
-| W4 Demo | Fourth person | Synthetic discharge PDF, seed facts, demo script, pitch, phone testing, backup recording | F3, demo |
+| W4 Demo and explainer | Fourth person | Synthetic discharge PDF and seed facts first (done by 0:40), then Ruth's explainer player with threejs-game-skills, then demo script and backup recording | F3, E8, demo |
 
 ### Mini App screens
 
@@ -224,13 +280,13 @@ Use Telegram's theme variables, call `Telegram.WebApp.ready()` and `expand()`, a
 
 | Time | Everyone | W1 Backend | W2 Mini App | W3 Models and Hermes | W4 Demo |
 |---|---|---|---|---|---|
-| 0:00–0:25 | Agree on the API contract, repo layout and seed list. Create folders. | Schema and stubs that return seed JSON | Vite scaffold, Telegram SDK, tab layout | Install ngrok and Unsloth; enable the Decision API; switch Hermes to e4b; BotFather Mini App and menu button; allowlist teammates | Write the synthetic discharge PDF (1–2 pages) and the 15 seed facts |
-| 0:25–1:30 | | Auth, facts CRUD, approve, cards, reviews with Py-FSRS, brief, Laya grading with fallback | Handbook, Brief and card flow against stubs | Extraction prompt with JSON schema on e4b; question/answer drafting; `/api/documents` with W1 | Seed loader data with backdated reviews so coverage is mixed |
+| 0:00–0:25 | Agree on the API contract, repo layout, seed list and explainer spec format. Create folders. | Schema and stubs that return seed JSON | Vite scaffold, Telegram SDK, tab layout | Install ngrok and Unsloth; enable the Decision API; switch Hermes to e4b; BotFather Mini App and menu button; allowlist teammates | Write the synthetic discharge PDF (1–2 pages) and the 15 seed facts |
+| 0:25–1:30 | | Auth, facts CRUD, approve, cards, reviews with Py-FSRS, brief, Laya grading with fallback; seed loader with backdated reviews | Handbook, Brief and card flow against stubs | Extraction prompt with JSON schema on e4b; question/answer drafting; `/api/documents` with W1 | From 0:40: install threejs-game-skills; build the explainer player and the `weigh_in` template against a hand-written spec |
 | **1:30** | **Checkpoint 1:** Mini App opens inside Telegram on a real phone through ngrok; auth works; the handbook shows seed facts; one typed answer is graded by Laya; memory pressure checked | | | | |
-| 1:30–2:30 | | Coverage, changes, invites and join, send-briefs | Add (text and PDF), approve drafts, Coverage, Changes, profile | `care-bridge` plugin, internal endpoints, Laya fact picking; disable `study-coach` | Demo script; test every screen on iOS and Android |
+| 1:30–2:30 | | Coverage, changes, invites and join, send-briefs; explainer endpoints and spec validation | Add (text and PDF), approve drafts, Coverage, Changes, profile | `care-bridge` plugin, internal endpoints, Laya fact picking, Gemma spec prompt; disable `study-coach` | `stand_safely` template; test the player in Telegram on iOS and Android |
 | **2:30** | **Checkpoint 2:** the whole Must demo path works end to end on phones | | | | |
-| 2:30–3:15 | Fix bugs from checkpoint 2 first | Coverage alert, responsibility badge | Polish, empty states, loading states | Older-adult moment end to end | Rehearse with the real flow |
-| **3:15** | **Feature freeze.** Stretch work only if every Must is green. | | | | |
+| 2:30–3:15 | Fix bugs from checkpoint 2 first | Coverage alert, responsibility badge | Polish, empty states, loading states | Older-adult moment end to end, including the "Show me" button | Connect the player to `/api/explainers/{id}`; demo script |
+| **3:15** | **Feature freeze.** Stretch work only if every Must is green. If the explainer isn't working by now, drop it from the demo; the chat moment still works without it. | | | | |
 | 3:15–3:45 | Rehearse twice. Record a backup video of the full demo. | | | | |
 | 3:45–4:00 | Buffer and pitch | | | | |
 
@@ -261,6 +317,7 @@ Stretch order if time remains: D5 ask the handbook (reuses Laya fact picking), B
 - [ ] BotFather: create the Mini App (`/newapp`) and set the menu button to the ngrok URL. Optionally rename the bot (`/setname`, `/setuserpic`). Reuse the existing bot so Hermes needs no new token.
 - [ ] Add teammates' Telegram user IDs to the Hermes allowlist, especially whoever plays Ruth.
 - [ ] Put the bot token in `local.env` for the backend. It is git-ignored; never commit it or put it in the frontend.
+- [ ] Explainer builder: review the threejs-game-skills repo, then install it for your coding agent, for example `npx skills add majidmanzarpour/threejs-game-skills --skill '*' -a claude-code -g -y` (use `-a codex` for Codex).
 - [ ] Before testing the older-adult moment, move `study-coach` from `plugins.enabled` to `plugins.disabled` in `~/.hermes/config.yaml` and restart the gateway.
 
 ## Seed data (W4)
@@ -282,7 +339,7 @@ Stretch order if time remains: D5 ask the handbook (reuses Laya fact picking), B
 3. **Marcus's brief (40 s):** the "Send briefs" button pushes Marcus a Telegram message. He opens a 60-second brief and types "phone her nurse"; Laya marks it correct. He misses the walker-brake fact, so FSRS brings it back sooner.
 4. **Change (20 s):** Priya edits the evening-meds fact. It appears in Changes and at the top of Marcus's next brief.
 5. **Coverage (30 s):** a grid of who reliably knows each warning sign, with an alert that only Priya knows the weight rule.
-6. **Ruth (30 s):** Ruth asks the bot about puffy ankles. It answers from her approved plan and asks before telling Priya, and Priya's phone buzzes.
+6. **Ruth (45 s):** Ruth asks the bot about puffy ankles. It answers from her approved plan and offers to show her. She taps "Show me", and a small 3D explainer walks her through the weigh-in in three taps. Then the bot asks before telling Priya, and Priya's phone buzzes.
 7. **Close (10 s):** "Care-Bridge makes sure the right person remembers the right thing when it matters."
 
 ## Risks and fallbacks
@@ -295,6 +352,8 @@ Stretch order if time remains: D5 ask the handbook (reuses Laya fact picking), B
 | PDF extraction is slow on stage | Run it once during rehearsal and cache drafts by file hash; the demo path reuses the cached result |
 | ngrok warning page appears on stage | Tap **Visit Site** on every demo phone beforehand; send the skip header on all API calls |
 | Tunnel drops | Restart ngrok; the static domain keeps the same URL, so BotFather needs no change |
+| Explainer slow or broken on an older phone | Low-poly scenes, no downloaded models; WebGL failure falls back to illustrated cards; pre-generate and cache the demo specs |
+| Gemma's spec doesn't match a template | Backend validation rejects it and uses the hand-written spec for that template |
 | Hermes reply goes off script | Keep Ruth's prompt rules strict; rehearse the exact wording; the backup video covers it |
 | Telegram webview layout bugs | Test on both iOS and Android at checkpoint 1, not at the end |
 | A teammate's Telegram account isn't allowlisted | Add every ID in the setup step and test by 1:30 |
