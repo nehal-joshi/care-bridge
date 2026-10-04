@@ -243,7 +243,7 @@ The tests run without Telegram, Gemma or Laya. They cover sign-in, briefs, FSRS 
 | Nehal Joshi | [@nehal-joshi](https://github.com/nehal-joshi) | Care-Bridge API, Mini App, 3D guides, Hermes plugin and local models; plays Marcus in the demo |
 | Amey | [@perfect7613](https://github.com/perfect7613) | Landing page (`web/`); plays Ruth in the demo |
 | Kush Anchalia | | First prototype server and dashboard; plays Dev in the demo |
-| Abhishree | | Testing and demo; plays Priya in the demo |
+| Abhishree Verma| [@abhishree07](https://github.com/abhishree07) | Testing and demo; plays Priya in the demo |
 
 ## Documents
 
